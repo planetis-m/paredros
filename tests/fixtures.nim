@@ -2,8 +2,8 @@
 ## coordinator session (a fixer commits in its own worktree, a reviewer reads
 ## it) and a single-agent session (two fixes, the first amended, and the
 ## human's own commit in the same checkout). Everything lives in one temp
-## directory; the environment points hitl's state, Claude Code's config, the
-## clipboard and the browser away from the real ones before anything runs.
+## directory; the environment points hitl's state, Claude Code's config and the
+## browser away from the real ones before anything runs.
 
 import std/[syncio, strutils, os, paths, dirs, tempfiles, envvars, result]
 import std/files except fileExists
@@ -74,7 +74,6 @@ proc setUp*() =
   try:
     putEnv("CLAUDE_CONFIG_DIR", root & "/claude")
     putEnv("XDG_STATE_HOME", root & "/state")
-    putEnv("HITL_NO_CLIPBOARD", "1")   # never touch the user's clipboard
     putEnv("BROWSER", "true")          # never open a browser
     let here = try: os.getCurrentDir() except: "."
     putEnv("PATH", here & "/nimcache/tests/bin:" & getEnv("PATH"))   # the fake claude

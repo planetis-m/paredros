@@ -14,12 +14,7 @@ proc readOr(p: string): string = (try: readFile(p) except: "")
 
 proc build(config = ""): string =
   let dir = tmp() & "/out"
-  var args: seq[string] = @[]
-  if config.len > 0: args.add "--config=" & config
-  args.add "review"
-  args.add "--out=" & dir
-  let r = cli(args)
-  check r.code == 0, "review ran: " & r.errors
+  discard review.build(spathOf(Sid), config, dir)
   dir
 
 proc briefOf(json: string): Brief = fromJson(json, Brief).get(Brief())
@@ -134,9 +129,9 @@ block test_markdown_subset:  # test_hitl.py::ReviewTests::test_markdown_subset
 block test_the_script_passes_its_config_on:  # test_hitl.py::ConfigTests::test_the_script_passes_its_config_on
   resetState()
   let dir = tmp() & "/script-out"
-  discard cli(["--config=" & example, "review", "--out=" & dir], Solo)
+  discard review.build(spathOf(Solo), example, dir)
   writeText(ledgerPath(SessionId(Solo)), """{"items": [{"id": 1, "title": "T", "sources": []}], "seen": {}}""")
-  discard cli(["--config=" & example, "review", "--out=" & dir], Solo)
+  discard review.build(spathOf(Solo), example, dir)
   check "Compare with Nim</button>" in readOr(dir & "/i1.html"), "--config reaches the pages"
 
 block test_single_agent_session_pages:  # test_hitl.py::WorkItemTests::test_single_agent_session (its page part)
@@ -145,7 +140,7 @@ block test_single_agent_session_pages:  # test_hitl.py::WorkItemTests::test_sing
                           {"title": "Quotes are escaped", "handles": ["C2", "T1", "T2"]}]}""")
   discard cli(["brief"], Solo)
   let dir = tmp() & "/solo-out"
-  discard cli(["review", "--out=" & dir], Solo)
+  discard review.build(spathOf(Solo), "", dir)
   check fileExists(dir & "/i1.html") and fileExists(dir & "/i2.html"), "a page per item"
 
 tearDown()

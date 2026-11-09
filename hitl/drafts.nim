@@ -1,10 +1,9 @@
 ## Your saved decisions ("directions"): written only by saving on a page, which
 ## is the approval; re-checked against the facts you saw before their text
-## leaves hitl, by page Copy or `hitl directions send`; delivered when the
+## leaves hitl by the page's Copy; delivered when the
 ## session's transcript shows you pasted them.
 
-import std/[syncio, os, paths, dirs, files, strutils, tables, opt, result, algorithm, osproc, streams,
-            envvars]
+import std/[syncio, os, paths, dirs, files, strutils, tables, opt, result, algorithm, envvars]
 import core, store, review
 
 type
@@ -146,7 +145,7 @@ proc draftsState*(sid: SessionId; spath, configFile: string; tips: Table[int, st
                           stale: (if delivered(sentAt): @[] else: staleFacts(dr, spath, configFile, t)))
 
 proc check*(sid: SessionId; spath, configFile, name: string; st: var Opt[DraftState]): string =
-  ## The one re-check before a draft's text leaves hitl, by page Copy or CLI send:
+  ## The one re-check before a draft's text leaves hitl, by the page's Copy:
   ## "" when it may go now, else why not; st is the draft's state when there is one.
   st = none[DraftState]()
   for x in draftsState(sid, spath, configFile, initTable[int, string]()):
@@ -156,16 +155,3 @@ proc check*(sid: SessionId; spath, configFile, name: string; st: var Opt[DraftSt
   if delivered(x.delivered): return "already sent to the session at " & runeHead(x.delivered.get(""), 16)
   if x.stale.len > 0: return "the facts changed since you decided; save it again on its page"
   ""
-
-proc copyToClipboard*(text: string): bool =
-  ## wl-copy keeps a process alive to own the clipboard; its output is never read,
-  ## so that process cannot hold ours open.
-  if getEnv("HITL_NO_CLIPBOARD").len > 0: return false
-  try:
-    let p = startProcess("wl-copy", options = {poUsePath})
-    let inp = p.inputStream
-    inp.write(text)
-    inp.close()
-    result = p.waitForExit(5000) == 0
-    p.close()
-  except: result = false

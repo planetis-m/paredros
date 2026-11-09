@@ -20,8 +20,11 @@ understand the work and decide. It offers:
   the code;
 - a read-only companion: a fork of the session the human can question;
 - decision drafts: the human's saved answers, re-checked against current facts
-  before the human copies them and pastes them into the session;
-- `status` and `show` in the terminal.
+  before the human copies them and pastes them into the session.
+
+hitl is a browser GUI: `hitl serve` builds the pages and serves them with the
+drafts and the chat; `hitl brief` starts the model runs, which cost money, only
+when the human asks.
 
 Non-goals:
 - Controlling the session. hitl never sends, stops, resumes or launches
@@ -39,7 +42,7 @@ These were decided with the user. Reopening one needs the user's approval.
 
 | Topic | Decision |
 |---|---|
-| Dependencies | The Nimony standard library, two Nimony libraries (kroki for JSON, hashi for HTTP), `git` and the `claude` CLI. No frameworks, database or npm; one build step (`./build.sh`). No downloaded third-party binaries; Fedora packages are fine (`lslocks`, `wl-copy`, `gio` are optional). |
+| Dependencies | The Nimony standard library, two Nimony libraries (kroki for JSON, hashi for HTTP), `git` and the `claude` CLI. No frameworks, database or npm; one build step (`./build.sh`). No downloaded third-party binaries; Fedora packages are fine. |
 | Model calls | All through `claude -p` on the user's subscription. No other vendor or API: decision APIs (OpenAI's Decisions API, TypeSafe's Jev) were evaluated and rejected because the tasks are generative, need tool use and run rarely. |
 | Structured output | Approved next step: `--json-schema` for the split and the brief, replacing regex JSON extraction. |
 | Server | A minimal hashi server on 127.0.0.1, with a per-run token and an Origin check, used only for acting features (companion chat, saving, re-checking, copying). Static file mode stays for reading. |
@@ -56,9 +59,9 @@ they call each other's functions.
 
 | Module | Responsibility |
 |---|---|
-| `hitl.nim` | Entry point and CLI (`status`, `show`, `brief`, `review`, `serve`, `companion`, `directions`). |
+| `hitl.nim` | Entry point and CLI (`brief`, `serve`). |
 | `hitl/core.nim` | The only adapter to Claude Code's transcript format and to git (`git()` is the one git runner). Config loading. State paths. The process runner. |
-| `hitl/companion.nim` | The companion's launch arguments and permission profile; the served companion conversation. |
+| `hitl/companion.nim` | The companion's arguments and permission profile; the companion conversation the server runs. |
 | `hitl/drafts.nim` | Drafts: write, read, withdraw, re-check, delivery detection. |
 | `hitl/review.nim` | Turns transcripts + git into sources (turns, agents, commits) and work items with their current code (`collect`). Renders the pages from items and briefs (`build`). Does no model calls and writes only the output directory. |
 | `hitl/briefs.nim` | Model work that can be precomputed: the split (sources into ledger items) and one brief per item, both cached. Owns the ledger and brief files. |
@@ -79,7 +82,7 @@ Data flow:
                  +---------------+----------------------+
                                  v
                 hitl/core   transcript + git adapters, config
-                   |  status / show (terminal)
+                   |
                    v
                 review.collect   sources -> items (ledger) -> current code
                    |        ^
@@ -188,13 +191,13 @@ My decision: <answer>. (d<N>, approved by me)
 | File | Content |
 |---|---|
 | `$STATE/companions` | session ids of companion forks, one per line, so a fork is never taken for the session |
-| `$STATE/briefs/<s>/companion-settings.json` | the companion's permission profile, one per session, rewritten on each launch |
+| `$STATE/briefs/<s>/companion-settings.json` | the companion's permission profile, one per session, rewritten on each question |
 | `$STATE/scratch/<s>/` | files for the config's compare action, nothing else |
 | in memory (`companion.Companion`) | the fork's session id for this server run; one question at a time |
 
 ### 4.6 Pages
 
-`$STATE/review/<s>/index.html` and `i<N>.html` (or `review --out DIR`),
+`$STATE/review/<s>/index.html` and `i<N>.html`, built by `hitl serve`,
 beside `hitl.css`, `hitl.js` and `tips.json` (the code tips `/drafts` reads).
 Disposable: rebuilt from items, briefs and git, each file written atomically;
 a build deletes only pages of items that are gone. They carry, as data
@@ -235,20 +238,20 @@ with it.
 | Use | Call |
 |---|---|
 | Split, brief | `claude -p --model <m> --output-format json --tools Read,Grep,Glob --strict-mcp-config --json-schema <schema>`, prompt on stdin, no session persistence, cwd = the repository; the answer is `structured_output` |
-| Companion (terminal) | `claude --resume <sid> --fork-session --session-id <new> --settings <profile> --strict-mcp-config --append-system-prompt <companion.md> --add-dir ...`, exec'd in the session's cwd |
-| Companion (served) | the same with `-p`; later questions `--resume <fork id>` |
+| Companion | `claude -p --resume <sid> --fork-session --session-id <new> --settings <profile> --strict-mcp-config --append-system-prompt <companion.md> --add-dir ... --output-format json`, prompt on stdin, cwd = the session's; later questions `--resume <fork id>` |
 
 Model output is data: parsed against a fixed shape, never trusted for
 numbering, identity or paths.
 
 ### 5.4 Browser
 
-- File mode (`hitl review`): pages work without a server and are read only;
-  the scripts detect the missing `window.HITL` and leave every control inert.
+- File mode (the built pages opened as files): pages work without a server
+  and are read only; the scripts detect the missing `window.HITL` and leave
+  every control inert.
 - Served mode (`hitl serve`): the same pages plus `/config.js`, which sets
   `window.HITL.token`.
-- Clipboard: `navigator.clipboard` in the page, `wl-copy` in the CLI; when
-  either fails, the text is shown for manual copying.
+- Clipboard: `navigator.clipboard` in the page; when it fails, the text is
+  shown for manual copying.
 
 ### 5.5 Config file
 
@@ -267,8 +270,7 @@ feature works; there are no Spec lines and no compare button.
 
 ### 6.1 The read-only guarantee rests on
 
-1. hitl's own code: it writes only under `$STATE` (and a `review --out`
-   directory, which it owns). It never opens a transcript or repository file
+1. hitl's own code: it writes only under `$STATE`. It never opens a transcript or repository file
    for writing.
 2. git: only reading subcommands, always `--no-optional-locks`, so no index
    lock is taken.
@@ -286,16 +288,14 @@ be denied or left out of the available tools, not merely left unallowed.
 
 - Allow: Read, Grep, Glob; `git --no-optional-locks` with `log`, `show`,
   `diff`, `status`, `rev-parse`, `blame`, `grep`, `ls-files`, `reflog show`;
-  `hitl --session=<s>` with `status`, `show`, `directions list` (`hitl` is the
-  binary's absolute path);
   Edit only in its scratch folder; the config's compare commands, with files
   in scratch only. No MCP servers (`--strict-mcp-config`).
 - Deny: git writes with and without `--no-optional-locks`, `git -C` in both
-  spellings, `gh` writes, the other `hitl` commands (`review`, `brief`,
-  `serve`, `companion`, `directions send`) with and without `--session`,
+  spellings, `gh` writes, `hitl brief` and `hitl serve` (`hitl` is the binary's
+  absolute path) with and without `--session`,
   `flock`, `tmux`, `rm`, `mv`, `kill`, `pkill`, SendMessage, TaskStop,
   NotebookEdit, Edit in the parent of the session's cwd.
-- Anything else asks the human (terminal) or is refused (`-p`).
+- Anything else is refused (`-p` asks no one).
 - It may start a fresh read-only reviewer for a second opinion; that reviewer
   inherits the same profile.
 
@@ -327,9 +327,9 @@ and a migration.
    follows its question. Rewriting briefs or adding material changes neither.
 4. **Numbers come from code.** The model proposes groupings and titles; code
    assigns numbers, validates handles and drops anything else.
-5. **Approval is re-checked before use.** No draft text leaves hitl (page
-   Copy or CLI send) unless, at that moment, it is not delivered and every
-   recorded fact still holds. The page and the CLI use the same check.
+5. **Approval is re-checked before use.** No draft text leaves hitl (the page's
+   Copy) unless, at that moment, it is not delivered and every recorded fact
+   still holds.
 6. **Facts are the ones the human saw.** A draft records the code tip and the
    brief the human was looking at when they saved.
 7. **Delivered is detected, not declared.** Only the session transcript says
@@ -389,7 +389,7 @@ generic default works. Then:
   goes through `core.git()`.
 - State paths are computed in one helper, not rebuilt inline.
 - New behaviour comes with a test on fixtures and the fake model; tests never
-  touch the real state directory or clipboard.
+  touch the real state directory or `~/.claude`.
 - Commit messages say what changed for the user.
 
 ---

@@ -24,20 +24,6 @@ proc die*(msg: string) {.noreturn.} =
   stderr.write msg & "\n"
   quit(1)
 
-proc quoted*(s: string): string =
-  ## Python's repr() of a string, for the messages that quote one.
-  let q = if '\'' in s and '"' notin s: '"' else: '\''
-  result = $q
-  for c in s:
-    if c == '\\': result.add "\\\\"
-    elif c == '\n': result.add "\\n"
-    elif c == '\r': result.add "\\r"
-    elif c == '\t': result.add "\\t"
-    elif c == q: result.add "\\" & c
-    elif c < ' ' or c == '\x7f': result.add "\\x" & toHex(ord(c), 2).toLowerAscii
-    else: result.add c
-  result.add q
-
 # -------------------------------------------------------------------- paths
 
 proc homeDir*(): string = getEnv("HOME")
@@ -142,22 +128,6 @@ proc fill*(text: string; fields: openArray[(string, string)]): string =
           continue
     result.add text[i]
     inc i
-
-proc padRight*(s: string; n: int): string =
-  ## f"{s:<n}"
-  s & repeat(' ', max(n - s.runeLen, 0))
-
-proc padLeft*(s: string; n: int): string =
-  ## f"{s:>n}"
-  repeat(' ', max(n - s.runeLen, 0)) & s
-
-proc ago*(seconds: float): string =
-  let s = int(seconds)
-  if s < 90: $s & "s" elif s < 5400: $(s div 60) & "m" else: $(s div 3600) & "h"
-
-proc nowSeconds*(): float =
-  let t = getTime()
-  float(t.seconds) + float(t.nanosecond) / 1e9
 
 proc mtimeSeconds*(path: string): float =
   let ns = try: getLastModificationTime(path) except: 0'i64
@@ -456,7 +426,7 @@ proc pickSession*(spec: string): Session =
       if s.project == here: hits.add s
     if hits.len == 0: hits = all
   if hits.len == 0:
-    die(if spec.len > 0: "hitl: no session matches " & quoted(spec) else: "hitl: no Claude Code session found")
+    die(if spec.len > 0: "hitl: no session matches " & spec else: "hitl: no Claude Code session found")
   hits[0]
 
 # -------------------------------------------------------------------- config
@@ -519,12 +489,6 @@ proc findAllGroup*(s: string; r: Regex): seq[string] =
 proc cdTargets*(cmd: string): seq[string] = findAllGroup(cmd, cdRe)
 proc gitcTargets*(cmd: string): seq[string] = findAllGroup(cmd, gitcRe)
 
-proc describeCall*(c: Block): string =
-  let i = c.input
-  let detail = if i.description.len > 0: i.description elif i.command.len > 0: i.command
-               elif i.filePath.len > 0: i.filePath else: i.pattern
-  c.name & ": " & short(detail, 70)
-
 proc workdirOf*(recs: seq[Rec]; prompt: string): Opt[string] =
   ## The directory an agent worked in: the most named `cd`/`git -C` target that exists.
   var count = initTable[string, int]()   # insertion-ordered, as Counter
@@ -549,24 +513,16 @@ proc workdirOf*(recs: seq[Rec]; prompt: string): Opt[string] =
   none[string]()
 
 type
-  AgentState* = enum asDone = "done", asRunning = "running", asQuiet = "quiet"
   Agent* = object
-    id*, path*, prompt*, description*, label*, start*: string
+    id*, path*, prompt*, description*, start*: string
     recs*: seq[Rec]
-    calls*: seq[Call]
-    finished*: bool
-    age*: float
     workdir*: Opt[string]
     # filled by review.sources
     report*: string
     top*: Opt[string]
     endTime*: float
-  GitSummary* = object
-    top*, branch*, ahead*: string
-    dirty*: int
   Meta = object
     description: string
-    finished: bool
 
 proc readJson(dst: var Meta; p: var JsonParser; u: UnknownFieldPolicy) =
   if p.kind != jkObject:
@@ -574,10 +530,7 @@ proc readJson(dst: var Meta; p: var JsonParser; u: UnknownFieldPolicy) =
     return
   for f in p.jsonFields:
     if f == "description": str(dst.description, p)
-    elif f == "finished" and p.kind == jkBool: readJson(dst.finished, p, u)
     else: p.skipJson()
-
-const QuietAfter* = 1800.0  ## seconds without transcript writes before "quiet"; sweeps run long
 
 proc finalReport*(recs: seq[Rec]): string =
   result = ""
@@ -585,20 +538,6 @@ proc finalReport*(recs: seq[Rec]): string =
     if c.tool.name == "SubagentHandback": result = c.tool.input.message
   if result.len > 0: return
   for (_, t) in assistantTexts(recs): result = t
-
-proc pathParts(p: string): seq[string] =
-  ## Path(p).parts
-  result = @["/"]
-  for x in p.split('/'):
-    if x.len > 0: result.add x
-
-proc commonSplitLen(a, b: string): int =
-  ## len(os.path.commonpath([a, b]).split(os.sep)) for absolute paths
-  let pa = pathParts(a)
-  let pb = pathParts(b)
-  var n = 0
-  while n < min(pa.len, pb.len) and pa[n] == pb[n]: inc n
-  result = if n <= 1: 2 else: n   # "/" splits into ['', '']; "/a/b" into ['', 'a', 'b']
 
 proc agents*(sessionPath: string): seq[Agent] =
   let base = sessionPath.substr(0, sessionPath.len - 7) & "/subagents"
@@ -621,8 +560,6 @@ proc agents*(sessionPath: string): seq[Agent] =
     if mt.isSome:
       meta = fromJson(mt.get(""), Meta).get(Meta())
     let recs = readJsonl(p)
-    var calls: seq[Call] = @[]
-    for c in toolUses(recs): calls.add c
     var prompt = ""
     if recs.len > 0 and recs[0].kind == rkUser:
       case recs[0].content
@@ -632,64 +569,10 @@ proc agents*(sessionPath: string): seq[Agent] =
         for b in recs[0].blocks: parts.add b.text   # PORTBUG(B4): every block's text, not only text blocks
         prompt = parts.join(" ")
       of ckNone: discard
-    var handedBack = false
-    for c in calls:
-      if c.tool.name == "SubagentHandback": handedBack = true
     let wd = workdirOf(recs, prompt)
-    result.add Agent(id: aid, path: p, recs: recs, calls: calls, prompt: prompt,
-                     description: meta.description, finished: meta.finished or handedBack,
-                     age: nowSeconds() - mtimeSeconds(p),
-                     start: (if recs.len > 0: recs[0].timestamp else: ""),
-                     workdir: wd, label: (if wd.isSome: extractFilename(wd.get("")) else: aid.substr(0, 7)))
+    result.add Agent(id: aid, path: p, recs: recs, prompt: prompt, description: meta.description,
+                     start: (if recs.len > 0: recs[0].timestamp else: ""), workdir: wd)
   result.sort(proc (a, b: Agent): int = cmp(a.start, b.start))   # stable, as Python's sort
-  # Name each agent by the first part of its worktree path that differs from
-  # the closest other worktree: ~/wt/f45/repo beside ~/wt/f31/repo is f45.
-  var wds: seq[string] = @[]
-  for a in result:
-    if a.workdir.isSome and a.workdir.get("") notin wds: wds.add a.workdir.get("")
-  if wds.len > 1:
-    for a in result.mitems:
-      if a.workdir.isSome:
-        let wd = a.workdir.get("")
-        let parts = pathParts(wd)
-        var shared = 0
-        for o in wds:
-          if o != wd: shared = max(shared, commonSplitLen(wd, o))
-        a.label = if shared < parts.len: parts[shared] else: parts[^1]
-
-proc stateOf*(a: Agent): AgentState =
-  if a.finished: asDone elif a.age < QuietAfter: asRunning else: asQuiet
-
-proc gitSummary*(wd: Opt[string]): Opt[GitSummary] =
-  if wd.isNone or git(wd.get(""), ["rev-parse", "--git-dir"]).isNone: return none[GitSummary]()
-  let top = git(wd.get(""), ["rev-parse", "--show-toplevel"]).get(wd.get(""))
-  var branch = git(top, ["branch", "--show-current"]).get("")
-  if branch.len == 0: branch = "(detached)"
-  var ahead = git(top, ["rev-list", "--count", "HEAD", "--not", "--remotes"]).get("")
-  if ahead.len == 0: ahead = "?"
-  let dirty = git(top, ["status", "--porcelain", "--untracked-files=no", "--ignore-submodules=all"]).get("")
-  some(GitSummary(top: top, branch: branch, ahead: ahead,
-                  dirty: if dirty.len > 0: dirty.splitLines.len else: 0))
-
-proc resolve*(sessionPath, spec: string): Agent =
-  ## The agent for a label or id prefix; a relaunched label means its running agent.
-  let ags = agents(sessionPath)
-  var found: seq[Agent] = @[]
-  for a in ags:
-    if a.label == spec: found.add a
-  if found.len == 0:
-    for a in ags:
-      if a.id.startsWith(spec): found.add a
-  if found.len > 1:
-    var running: seq[Agent] = @[]
-    for a in found:
-      if not a.finished: running.add a
-    found = if running.len > 0: running else: @[found[^1]]
-  if found.len == 1: return found[0]
-  var names: seq[string] = @[]
-  for a in ags: names.add a.label & "(" & a.id.substr(0, 7) & ")"
-  die("hitl: " & quoted(spec) & " matches " & $found.len & " agents; known: " & names.join(", "))
-
 proc decisionId*(question: string): string =
   ## Stable id of a decision across brief rewrites with the same question.
   var st = newSha1State()
@@ -697,21 +580,6 @@ proc decisionId*(question: string): string =
   ($SecureHash(st.finalize())).toLowerAscii.substr(0, 9)
 
 # -------------------------------------------------------------------- browser
-
-proc pyPath*(p: string): string =
-  ## str(pathlib.Path(p)): no empty or "." parts, no trailing slash.
-  var parts: seq[string] = @[]
-  for x in p.split('/'):
-    if x.len > 0 and x != ".": parts.add x
-  result = (if p.startsWith("/"): "/" else: "") & parts.join("/")
-  if result.len == 0: result = "."
-
-proc fileUri*(path: string): string =
-  ## Path.as_uri() of an absolute path: file:// and the path, percent-encoded.
-  result = "file://"
-  for c in path:
-    if c in {'A'..'Z', 'a'..'z', '0'..'9', '-', '.', '_', '~', '/'}: result.add c
-    else: result.add "%" & toHex(ord(c), 2)
 
 proc openBrowser*(url: string) =
   ## webbrowser.open(url): $BROWSER if set, else xdg-open; not waited for.

@@ -11,13 +11,16 @@ no extra work. You still talk to the session as before; hitl gives you:
   for a second opinion, or ask to challenge you, without interrupting it.
 - **Saved decisions:** your answers, saved on the pages and re-checked against
   the current facts before you paste them into the session.
-- `status` and `show` in the terminal.
+
+hitl runs in the browser. It has two commands: `hitl brief` starts the model
+runs (they cost money, so they run only when you ask), and `hitl serve` builds
+the pages and serves them.
 
 ## Install
 
 Needs a Nimony build (`nimony`), git and the `claude` CLI. kroki and hashi,
-the two Nimony libraries hitl uses, are cloned into `deps/`. `wl-copy`
-(wl-clipboard) for copying is optional. Build once, then add an alias:
+the two Nimony libraries hitl uses, are cloned into `deps/`. Build once, then
+add an alias:
 
 ```sh
 git clone <this repository> ~/Projects/hitl-nimony
@@ -35,15 +38,12 @@ current directory's project, else the newest session.
 
 ```sh
 hitl brief            # sort the session into work items and write their briefs
+hitl brief 3 5        # rewrite only the briefs of items 3 and 5 (when their inputs changed)
 hitl serve            # pages, decisions and a chat: select text, "Ask about this"
-hitl review --open    # the same pages as plain files, without the chat
-hitl companion        # talk to the read-only companion
-hitl companion "what does the change in #4 mean for callers?"   # one question, one answer
-hitl directions       # list your saved decisions and whether their facts changed
-hitl directions send d3   # re-check one and copy it
-hitl status           # one line per agent
-hitl show f45         # one agent's commits and final report
 ```
+
+The pages `hitl serve` builds stay in `~/.local/state/hitl/review/<session>/`;
+opened as plain files they are read only.
 
 ## How it works with one agent or many
 
@@ -171,21 +171,21 @@ read-only.
 ## The chat and the companion
 
 `hitl serve` runs a small web server on 127.0.0.1 (hashi)
-that serves the pages and passes your questions to the companion. Select any
+that serves the pages and passes your questions to the companion: a
+read-only fork of the session (`claude -p --resume <session> --fork-session`,
+in the session's directory), which later questions continue. Select any
 text and choose "Ask about this", or press "Ask" in the corner. The server
 answers only requests addressed to `127.0.0.1:<port>` or `localhost:<port>`;
 each run uses a random token, and it refuses actions without it or from
 another site's page.
 
-`hitl companion` starts `claude --resume <session> --fork-session` in the
-session's directory. The fork starts with the session's whole conversation;
-the session itself is not changed. Its permission profile lets it read, run
-reading git subcommands (`git --no-optional-locks log`, `show`, `diff`, ...)
-and `hitl status`, `show` and `directions list`, plus the config's compare
-commands; it can write only to its scratch folder and has no MCP tools. Git
-and `gh` writes (with or without `--no-optional-locks`, and any `git -C`),
-the other `hitl` commands, messaging or stopping agents, and `flock` are
-denied; anything else not listed asks you first. It drafts nothing: you save
+The fork starts with the session's whole conversation; the session itself is
+not changed. Its permission profile lets it read and run reading git
+subcommands (`git --no-optional-locks log`, `show`, `diff`, ...), plus the
+config's compare commands; it can write only to its scratch folder and has no
+MCP tools. Git and `gh` writes (with or without `--no-optional-locks`, and any
+`git -C`), `hitl brief` and `hitl serve`, messaging or stopping agents, and
+`flock` are denied; anything else not listed is refused. It drafts nothing: you save
 decisions on the pages and type everything else. Ask it to explain, to give a
 second opinion (it starts a fresh reviewer that gets the code, not your
 conclusion), or to grill you.
@@ -205,10 +205,10 @@ works and does not interrupt it.
 
 Saving a decision on a page is your approval. The draft records the facts
 you saw: the item's code and its brief as the page showed them. Copy on the
-page and `hitl directions send d3` make the same check: they refuse when the
-draft already reached the session or when those facts changed since (then
-save it again on its page). Otherwise they copy the text, which ends with
-`(d3, approved by me)`. You paste it into the session between turns.
+page checks them again: it refuses when the draft already reached the session
+or when those facts changed since (then save it again on its page). Otherwise
+it copies the text, which ends with `(d3, approved by me)`. You paste it into
+the session between turns.
 
 ## Tests
 

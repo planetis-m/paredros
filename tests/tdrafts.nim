@@ -79,7 +79,7 @@ block test_companion_setup_builds_its_arguments:  # test_hitl.py::ReviewTests::t
   check "Bash(git push:*)" in perms.deny, "git push is denied"
   check "--strict-mcp-config" in args, "no MCP tools"
   for r in perms.allow:
-    check not ("directions" in r and "list" notin r), "only directions list: " & r
+    check hitlPath() notin r, "no hitl command: " & r
   let system = args[args.find("--append-system-prompt") + 1]
   check "Compare" notin system, "no config: no compare action"
   check "{" notin system, "every field filled"
@@ -117,7 +117,7 @@ block test_page_identity_survives_new_material_and_rewritten_briefs:  # test_hit
     check k in led2.items[0].sources, "a source stays in its item"
   check stateOf(solo, spath, dr.id).stale.len == 0, "same code, same evidence: the decision holds"
   let dir = tmp() & "/id-out"
-  discard cli(["review", "--out=" & dir], Solo)
+  discard build(spath, "", dir)
   check "data-item=\"1\" data-did=\"" & did & "\"" in readOr(dir & "/i1.html"), "the decision keeps its id"
   writeText(spath, before)
 

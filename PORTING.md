@@ -160,37 +160,31 @@ it matches Python on all 254 (`scratch/inline_corpus.*`).
 
 ```
 hitl
-Read-only views of a Claude Code session: one agent, or a coordinator and its subagents.
+Review and decide on what a Claude Code session did: one agent, or a coordinator and its subagents.
 
-Usage: hitl [options] status|show|review|brief|companion|serve|directions
+Usage: hitl [options] brief|serve
 
 Commands:
-  status              one line per agent (default)
-  show AGENT          one agent: commits, last actions, final report
-  review              build the HTML review pages and print the index path
   brief ITEM...       sort the session into work items and write their briefs (model runs, cached)
-  companion ASK...    talk to a read-only fork of the session
-  serve               serve the review pages with a chat to the companion
-  directions ARG...   list your saved decisions (list), or re-check and copy one (send DRAFT)
+  serve               build the review pages and serve them, with your decisions and a chat
 
 Options:
   --session=S       session id prefix or project-name substring
   --config=FILE     config file (default: .hitl.json in the session's working directory)
-  -n, --n=N         show: how many last actions (default 8)
-  --open            review: open the index in the browser
-  --out=DIR         review: output directory (default ~/.local/state/hitl/review/<session>)
-  --model=M         brief: the model (default opus); companion, serve: the model
+  --model=M         brief: the model (default opus); serve: the companion's model
   --force           brief: rewrite even if the inputs did not change
   --jobs=N          brief: parallel brief runs (default 4)
   --port=N          serve: the port (default 8765)
   -h, --help        show this help and exit
 ```
 
-What smartcli expresses exactly: every command, the positional `AGENT`, the
-variadic `N...` (as `ITEM...`, since the field `n` is taken by `-n`) and
-`ASK...`, every option. Checked in code after parsing, as argparse does in its
-types: integers for `-n`, `--jobs`, `--port` and the items; `directions`
-takes at most two words, the first `list` or `send`.
+`status`, `show`, `review`, `directions` and `companion` are gone (D10): hitl
+is the browser GUI, `serve` builds the pages, and the page's Copy makes the
+re-check `directions send` made.
+
+What smartcli expresses exactly: both commands, the variadic `ITEM...`, every
+option. Checked in code after parsing: integers for `--jobs`, `--port` and the
+items.
 
 Where it differs from argparse (all confirmed with `scratch/cli.nim`):
 
@@ -294,7 +288,7 @@ labelled with the Python name (nim-testing):
 | B1 | `review.py:58` `OWN_WINDOW = 120`, reflogs of every worktree where the session committed | commit discovery can take another session's commit inside the window | preserved; fix pending the user's decision |
 | B2 | `serve.py:69` `Handler` | `do_HEAD` is not overridden, so HEAD skips the Host check | changed, approved by the user: HEAD gets the Host check (D2) |
 | B3 | `serve.py:156` `run` | prints the port it was given, not the bound one (`--port=0` prints `:0/`) | preserved (unconfirmed) |
-| B5 | `hitl.py:341` `cmd_review` | `review --open` with a relative `--out` fails: `Path.as_uri()` refuses a relative path | preserved |
+| B5 | `hitl.py:341` `cmd_review` | `review --open` with a relative `--out` fails: `Path.as_uri()` refuses a relative path | gone with the `review` command (D10) |
 | B4 | `hitl.py:241` `agents` | an agent's task joins the `text` of every block, not only text blocks, unlike `text_of` | preserved (unconfirmed) |
 
 Each gets a `# PORTBUG(Bn): ...` marker at its translated site.
@@ -339,6 +333,7 @@ same inputs and diffs what they print and write.
 | D6 | No workarounds for Nimony bugs or stdlib gaps: natural code, a comment naming the bug report, the behaviour accepted until upstream fixes it (section 12) | user |
 | D8 | GIT_WRITE is written as `\bgit\b[^\n;&\|]*[^\w\n;&\|](?:commit\|...)\b`, the equivalent without a `\b` after the repetition (bug 106) | user |
 | D9 | `build.sh` builds with a copy of the nimony toolchain in `nimcache/toolchain` (bug 108); refresh it with `./build.sh --toolchain` | user |
+| D10 | The CLI has two commands, `brief` and `serve`; `status`, `show`, `review`, `directions` and `companion` (with its terminal path), their options (`-n`, `--open`, `--out`) and their code and tests are removed. The companion runs only as the chat's `claude -p` fork; its profile allows no hitl command. ARCHITECTURE.md and README follow | user |
 | D7 | Integer options that do not parse exit with `hitl: invalid value for <option>: <value>` (smartcli's `cliInvalidValue` needs the spec literal, which `cliapp` takes only as a literal) | port |
 
 ## 12. Known issues
@@ -355,7 +350,6 @@ until upstream fixes it.
 | `bug-reports/106-rex-word-boundary-after-repetition` | `review.gitWrite` (GIT_WRITE) | the natural pattern never matches; written with the non-word character that `\b` stands for there (approved, D8), which matches Python on all 3,051 real commands |
 | `bug-reports/108-const-eval-ignores-stdcache-option` | every build (smartcli and rex are plugins) | builds would write into `~/Projects/nimony/stdcache`; `build.sh` uses a toolchain copy instead (approved, D9) |
 | `bug-reports/109-listentcp-asserts-on-busy-port`, `bug-reports/113-listenhttp-cannot-choose-listen-address` | `serve.nim` (milestone 6) | the server listens on every interface, and a busy port is an assertion, not a message |
-| std/posix has no `execvp` (gap) | `companion.runCompanion` | the terminal companion runs `claude` as a child on hitl's terminal and hitl exits with its code, instead of replacing the hitl process |
 | strutils has no `count`, seqs have no `&` (gaps) | `pages.itemBody`, `review.gitCalls`, tests | counted from the parsed diff files; lists built with `add` |
 | `bug-reports/103-case-on-result-in-generic-proc` | none so far (no generic code unpacks a `Result`) | |
 | `bug-reports/107-staticread-relative-path-fails-silently` | none (static files are read at run time) | |

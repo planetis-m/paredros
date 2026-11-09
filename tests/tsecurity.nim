@@ -27,7 +27,7 @@ type Perms = object
 type Profile = object
   permissions: Perms
 
-block test_companion_may_run_only_reading_git_and_hitl:  # test_hitl.py::SecurityTests::test_companion_may_run_only_reading_git_and_hitl
+block test_companion_may_run_only_reading_git:  # test_hitl.py::SecurityTests::test_companion_may_run_only_reading_git_and_hitl
   let (_, args) = companionSetup(SessionId(Sid), spathOf(Sid), "")
   let f = args[args.find("--settings") + 1]
   let perms = fromJson((try: readFile(f) except: ""), Profile).get(Profile()).permissions
@@ -44,7 +44,7 @@ block test_companion_may_run_only_reading_git_and_hitl:  # test_hitl.py::Securit
     for w in GitWrites: writes.add "git" & f & " " & w & " x"
   for w in ["git -C /r commit -m x", "git --no-optional-locks -C /r push", "gh pr merge 3"]: writes.add w
   for f in ["", s]:
-    for c in ["review --out=/tmp/x", "brief --force", "companion", "serve", "directions send d1"]:
+    for c in ["brief --force", "serve"]:
       writes.add me & f & " " & c
   proc matches(rules: seq[string]; cmd: string): bool =
     for r in rules:
@@ -54,8 +54,7 @@ block test_companion_may_run_only_reading_git_and_hitl:  # test_hitl.py::Securit
     check not matches(allow, w), "not allowed: " & w
     check matches(deny, w), "denied: " & w
   for r in ["git --no-optional-locks log -3", "git --no-optional-locks diff a b",
-            "git --no-optional-locks reflog show HEAD", me & s & " status", me & s & " show f7",
-            me & s & " directions list"]:
+            "git --no-optional-locks reflog show HEAD"]:
     check matches(allow, r), "allowed: " & r
     check not matches(deny, r), "not denied: " & r
   check "Bash(git --no-optional-locks:*)" notin perms.allow, "no blanket git"
