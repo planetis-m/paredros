@@ -39,27 +39,6 @@ type
     state*: BriefState
     error*: string
 
-proc fill*(text: string; fields: openArray[(string, string)]): string =
-  ## str.format with named fields, in one pass: a value is never filled again.
-  result = ""
-  var i: Natural = 0
-  while i < text.len:
-    if text[i] == '{':
-      let close = text.find('}', i + 1)
-      if close > i:
-        let name = text.substr(i + 1, close - 1)
-        var hit = false
-        for (k, v) in fields:
-          if k == name:
-            result.add v
-            hit = true
-            break
-        if hit:
-          i = close + 1
-          continue
-    result.add text[i]
-    inc i
-
 proc promptFor*(cfg: Config; sources: string): string =
   if cfg.spec.len > 0:
     fill(BriefPrompt, [("reader", cfg.reader), ("users", cfg.users), ("sources", sources),

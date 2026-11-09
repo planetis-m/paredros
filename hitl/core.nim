@@ -54,9 +54,13 @@ proc companionsFile*(): string = stateRoot() & "/companions"
   ## session ids of companion forks, one per line
 
 proc appDir*(): string =
-  ## The repository the binary was built in: bin/hitl -> its parent. The
-  ## pages' static files and the companion prompt are read from there.
-  parentDir(parentDir(getAppFilename()))
+  ## The repository the binary was built in: the nearest directory above it that
+  ## holds companion.md (for bin/hitl, the repository's root). The pages' static
+  ## files and the companion prompt are read from there, as Python reads them
+  ## beside its source.
+  var d = parentDir(getAppFilename())
+  while d.len > 1 and not fileExists(d & "/companion.md"): d = parentDir(d)
+  if fileExists(d & "/companion.md"): d else: parentDir(parentDir(getAppFilename()))
 
 proc ensureDir*(dir: string) =
   try: createDir(path(dir))
@@ -117,6 +121,27 @@ proc collapse*(s: string): string =
 proc short*(text: string; n = 90): string =
   let t = collapse(text)
   if t.runeLen <= n: t else: t.runeHead(n - 1) & "…"
+
+proc fill*(text: string; fields: openArray[(string, string)]): string =
+  ## str.format with named fields, in one pass: a value is never filled again.
+  result = ""
+  var i: Natural = 0
+  while i < text.len:
+    if text[i] == '{':
+      let close = text.find('}', i + 1)
+      if close > i:
+        let name = text.substr(i + 1, close - 1)
+        var hit = false
+        for (k, v) in fields:
+          if k == name:
+            result.add v
+            hit = true
+            break
+        if hit:
+          i = close + 1
+          continue
+    result.add text[i]
+    inc i
 
 proc padRight*(s: string; n: int): string =
   ## f"{s:<n}"

@@ -1,6 +1,8 @@
 # Porting hitl to Nimony
 
-Status: **milestone 4 done** (core, `status`, `show`, `brief`, `review`).
+Status: **milestone 5 done**: every command but `serve` (milestone 6 waits for
+the std/httpserver and hashi reliability comparison). Toolchain: nimony
+`e3acab77`, all tests green in debug and release.
 
 - Source: `~/Projects/hitl`, branch `general`, `cf055de`. Python 3.15, stdlib
   only. `ARCHITECTURE.md` and `DESIGN.md` there are locked and govern this port.
@@ -264,10 +266,10 @@ labelled with the Python name (nim-testing):
 | Python class | Tests | Nimony file |
 |---|---|---|
 | ViewTests | 2 | `tests/tviews.nim` (ported, passing) |
-| WorkItemTests | 4 | `tests/titems.nim`, the page part in `tests/treview.nim` (3 passing; the page-identity test follows with drafts) |
+| WorkItemTests | 4 | `tests/titems.nim`, the page part in `tests/treview.nim`, page identity in `tests/tdrafts.nim`, all passing |
 | ConfigTests | 5 | `tests/tconfig.nim`, the script test in `tests/treview.nim` (all 5 passing) |
-| ReviewTests | 9 | `tests/treview.nim` (6 ported, passing; the draft and companion tests follow) |
-| SecurityTests | 2 | `tests/tsecurity.nim` (the model-run test ported, passing) |
+| ReviewTests | 9 | `tests/treview.nim` (6) and `tests/tdrafts.nim` (3), all passing |
+| SecurityTests | 2 | `tests/tsecurity.nim`, both passing |
 | ServerTests | 2 | `tests/tserve.nim` |
 
 - Fixtures: the same throwaway git repos and transcripts as `setUpModule`,
@@ -353,6 +355,8 @@ until upstream fixes it.
 | `bug-reports/106-rex-word-boundary-after-repetition` | `review.gitWrite` (GIT_WRITE) | the natural pattern never matches; written with the non-word character that `\b` stands for there (approved, D8), which matches Python on all 3,051 real commands |
 | `bug-reports/108-const-eval-ignores-stdcache-option` | every build (smartcli and rex are plugins) | builds would write into `~/Projects/nimony/stdcache`; `build.sh` uses a toolchain copy instead (approved, D9) |
 | `bug-reports/109-listentcp-asserts-on-busy-port`, `bug-reports/113-listenhttp-cannot-choose-listen-address` | `serve.nim` (milestone 6) | the server listens on every interface, and a busy port is an assertion, not a message |
+| std/posix has no `execvp` (gap) | `companion.runCompanion` | the terminal companion runs `claude` as a child on hitl's terminal and hitl exits with its code, instead of replacing the hitl process |
+| strutils has no `count`, seqs have no `&` (gaps) | `pages.itemBody`, `review.gitCalls`, tests | counted from the parsed diff files; lists built with `add` |
 | `bug-reports/103-case-on-result-in-generic-proc` | none so far (no generic code unpacks a `Result`) | |
 | `bug-reports/107-staticread-relative-path-fails-silently` | none (static files are read at run time) | |
 | `bug-reports/110-for-tuple-unpack-undeclared-iterator-crash` | met while writing `core.nim` (a missing import); no code depends on it | |
@@ -403,6 +407,9 @@ nimony-error-handling channels (`Opt` for absence, `{.raises.}` with
 
 | `review --out` | real session, 4 items (3 with real briefs converted by `brief.parse`, one without), with and without `examples/nimony.hitl.json` | all 8 files equal: the pages byte for byte (item 1 is 780 KB, the diff of 22 commits), `tips.json` parsed (`tests/parity/review.sh`) |
 | `html.untimed`, `html.markdown` | the sources and texts of the real briefs and 37 real agent reports, with edge cases | 137 of 137 equal (`scratch/untimed_corpus.*`) |
+
+| drafts, `directions` | real session: 4 decisions written, one rewritten, one withdrawn, by Python's `decide`/`withdraw` and by the port's | the draft files byte-identical; `directions list`, `send` (stale, unknown, missing id) equal on both states, stdout and stderr each |
+| `companion` | real session, fake claude | output and exit equal; argv equal but for the companion prompt's hitl command line (D3); the settings file differs only in the 3 allow and 10 deny rules naming hitl (D3) |
 
 Differences found and accepted so far: the brief cache writes every field of an
 entry's type (`why: ""` on entries the model wrote without it, `recommended:

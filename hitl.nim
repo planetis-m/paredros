@@ -5,8 +5,8 @@
 ## repositories and worktrees the session works in. Agents never load hitl and do
 ## no extra reporting. Control stays with the session.
 
-import std/[syncio, strutils, opt, smartcli]
-import hitl/[core, store, review, briefs]
+import std/[syncio, strutils, opt, tables, smartcli]
+import hitl/[core, store, review, briefs, drafts, companion]
 
 type Options = object   ## the parsed command line, as the commands use it
   session, config: string
@@ -88,6 +88,34 @@ proc cmdBrief(o: Options; items: seq[string]; model: string; force: bool; jobs: 
   for r in generateAll(d, numbers, model, force, jobs):
     echo "#", r.n, ": ", (if r.state == bsFailed: "failed: " & r.error else: $r.state)
 
+proc cmdDirections(o: Options; words: seq[string]) =
+  let action = if words.len > 0: words[0] else: "list"
+  if action notin ["list", "send"] or words.len > 2:
+    die("hitl: invalid choice for directions: " & words.join(" ") & " (choose from list, send DRAFT)")
+  let draft = if words.len > 1: words[1] else: ""
+  let s = pickSession(o.session)
+  let recs = readJsonl(s.path)
+  var tips = initTable[int, string]()
+  if action == "list":
+    let items = allDrafts(s.id)
+    if items.len == 0: echo "no saved decisions in ", draftDir(s.id)
+    for dr in items:
+      let sentAt = deliveredAt(dr, recs)
+      let said = if sentAt.get("").len > 0: "delivered " & runeHead(sentAt.get(""), 16) else: "saved"
+      echo padRight(dr.id, 4), " ", padRight(said, 22), " ", short(dr.text, 70)
+      if sentAt.get("").len == 0:
+        for x in staleFacts(dr, s.path, o.config, tips): echo "       changed: ", x
+    return
+  var st = none[DraftState]()
+  let why = check(s.id, s.path, o.config, draft, st)
+  if why.len > 0:
+    for x in st.get(DraftState()).stale: echo "  - ", x
+    die("hitl: " & (if draft.len > 0: draft else: "None") & ": " & why & "; not sent")
+  let text = st.get(DraftState()).text
+  echo text
+  if copyToClipboard(text): echo "\n(copied; paste it into the session when it is between turns)"
+  else: echo "\n(paste the text above into the session when it is between turns)"
+
 proc notYet(what: string) = die("hitl: " & what & " is not ported yet")
 
 # ------------------------------------------------------------------------ main
@@ -125,9 +153,11 @@ Options:
   of cmdReview: cmdReview(o, cli.out, cli.open)
   of cmdBrief: cmdBrief(o, cli.item, (if cli.model.len > 0: cli.model else: "opus"), cli.force,
                         intOption("--jobs", cli.jobs, 4))
-  of cmdCompanion: notYet("companion")
+  of cmdCompanion:
+    let s = pickSession(o.session)
+    quit(runCompanion(s.id, s.path, o.config, cli.model, cli.ask))
   of cmdServe: notYet("serve")
-  of cmdDirections: notYet("directions")
+  of cmdDirections: cmdDirections(o, cli.arg)
   of cmdNone: discard   # cliapp has already refused a command line without one
 
 main()
