@@ -1,7 +1,6 @@
 # Porting hitl to Nimony
 
-Status: **milestone 2 done** (core, `status`, `show`). Stopped at milestone 3
-on bug 106 (section 12).
+Status: **milestone 3 done** (core, `status`, `show`, `brief`).
 
 - Source: `~/Projects/hitl`, branch `general`, `cf055de`. Python 3.15, stdlib
   only. `ARCHITECTURE.md` and `DESIGN.md` there are locked and govern this port.
@@ -262,10 +261,10 @@ labelled with the Python name (nim-testing):
 | Python class | Tests | Nimony file |
 |---|---|---|
 | ViewTests | 2 | `tests/tviews.nim` (ported, passing) |
-| WorkItemTests | 4 | `tests/titems.nim` |
-| ConfigTests | 5 | `tests/tconfig.nim` (4 ported, passing; the prompt and page checks and the script test follow with briefs and pages) |
+| WorkItemTests | 4 | `tests/titems.nim` (3 ported, passing; their page and draft checks follow with pages and drafts) |
+| ConfigTests | 5 | `tests/tconfig.nim` (4 ported, passing; the script test follows with pages) |
 | ReviewTests | 9 | `tests/treview.nim` |
-| SecurityTests | 2 | `tests/tsecurity.nim` |
+| SecurityTests | 2 | `tests/tsecurity.nim` (the model-run test ported, passing) |
 | ServerTests | 2 | `tests/tserve.nim` |
 
 - Fixtures: the same throwaway git repos and transcripts as `setUpModule`,
@@ -332,6 +331,8 @@ same inputs and diffs what they print and write.
 | D4 | kroki for JSON, decoding straight into the final types (no raw, intermediate or tolerant wrapper types); config errors keep kroki's message | user |
 | D5 | std/httpserver for the server, state passed in a context object; plain `listenHttp` | user |
 | D6 | No workarounds for Nimony bugs or stdlib gaps: natural code, a comment naming the bug report, the behaviour accepted until upstream fixes it (section 12) | user |
+| D8 | GIT_WRITE is written as `\bgit\b[^\n;&\|]*[^\w\n;&\|](?:commit\|...)\b`, the equivalent without a `\b` after the repetition (bug 106) | user |
+| D9 | `build.sh` builds with a copy of the nimony toolchain in `nimcache/toolchain` (bug 108); refresh it with `./build.sh --toolchain` | user |
 | D7 | Integer options that do not parse exit with `hitl: invalid value for <option>: <value>` (smartcli's `cliInvalidValue` needs the spec literal, which `cliapp` takes only as a literal) | port |
 
 ## 12. Known issues
@@ -345,8 +346,8 @@ until upstream fixes it.
 | `bug-reports/105-osproc-pipes-inherited-by-later-children` | `core.launch`, `core.runAll` (parallel briefs) | a child started later holds the earlier children's pipe ends; each child is fed and its stdin closed before the next starts, which is the natural order, so nothing hangs |
 | osproc has no `communicate` (gap) | `core.collect` | stdout is read to its end before stderr: a child that fills the stderr pipe (64 KB) before closing stdout would wait for hitl; `git` and `claude` write little to stderr |
 | osproc's timeout (gap) | `core.collect` | `waitForExit(timeout)` runs after both pipes close, so a `git` or `claude` that hangs with its pipes open is not stopped (Python stops it after 20 s, 60 s or 900 s) |
-| `bug-reports/106-rex-word-boundary-after-repetition` | `review.gitCalls` (GIT_WRITE) | **blocking**: the natural pattern never matches, so no session has commits, items have no code and briefs see no diff. Milestone 3 stopped here |
-| `bug-reports/108-const-eval-ignores-stdcache-option` | every build (smartcli and rex are plugins) | builds would write into `~/Projects/nimony/stdcache`; `build.sh` uses a toolchain copy instead (a question, section 13) |
+| `bug-reports/106-rex-word-boundary-after-repetition` | `review.gitWrite` (GIT_WRITE) | the natural pattern never matches; written with the non-word character that `\b` stands for there (approved, D8), which matches Python on all 3,051 real commands |
+| `bug-reports/108-const-eval-ignores-stdcache-option` | every build (smartcli and rex are plugins) | builds would write into `~/Projects/nimony/stdcache`; `build.sh` uses a toolchain copy instead (approved, D9) |
 | `bug-reports/109-listentcp-asserts-on-busy-port`, `bug-reports/113-listenhttp-cannot-choose-listen-address` | `serve.nim` (milestone 6) | the server listens on every interface, and a busy port is an assertion, not a message |
 | `bug-reports/103-case-on-result-in-generic-proc` | none so far (no generic code unpacks a `Result`) | |
 | `bug-reports/107-staticread-relative-path-fails-silently` | none (static files are read at run time) | |
@@ -355,8 +356,8 @@ until upstream fixes it.
 ## 13. Milestones
 
 Each ends with its tests green in debug and release, and a commit on `main`.
-Done: 1, 2. Open questions: bug 106 (milestone 3); whether building with a
-toolchain copy (bug 108) is acceptable.
+Done: 1, 2, 3. The server (6) waits for the outcome of the std/httpserver and
+hashi reliability comparison.
 
 1. **Plan** (this file). Commit.
 2. **Core**: `core.nim` (state paths, config, transcripts, git, runner, agents),
@@ -387,3 +388,15 @@ toolchain copy (bug 108) is acceptable.
 Throughout: no `std/sequtils` (plain loops that fill a result), and the
 nimony-error-handling channels (`Opt` for absence, `{.raises.}` with
 `ErrorCode` across layers, first-error state in the readers).
+
+## 14. Parity results so far
+
+| Command | Input | Result |
+|---|---|---|
+| `status` | real session 26c3c765 | byte-identical (39 lines) |
+| `show` | real session, all 37 agents, no `-n`, `-n=3`, `-n=0`; a label, an unknown and an ambiguous spec | byte-identical, exit codes equal |
+| `brief` | real session, fake claude splitting into 3 items (22 commits, 37 agents, 71 turns) | stdout equal; the 4 prompts byte-identical (up to 194 KB); ledger and briefs equal parsed, without `generated`; a second run "unchanged" and `--force 2 3` equal (`tests/parity/brief.sh`) |
+
+Differences found and accepted so far: the brief cache writes every field of an
+entry's type (`why: ""` on entries the model wrote without it, `recommended:
+null` when absent), D4; JSON whitespace (section 7).

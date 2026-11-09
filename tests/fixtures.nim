@@ -6,6 +6,7 @@
 ## clipboard and the browser away from the real ones before anything runs.
 
 import std/[syncio, strutils, os, paths, dirs, tempfiles, envvars, result]
+import std/files except fileExists
 import kroki
 import ../hitl/core
 
@@ -75,6 +76,10 @@ proc setUp*() =
     putEnv("XDG_STATE_HOME", root & "/state")
     putEnv("HITL_NO_CLIPBOARD", "1")   # never touch the user's clipboard
     putEnv("BROWSER", "true")          # never open a browser
+    let here = try: os.getCurrentDir() except: "."
+    putEnv("PATH", here & "/nimcache/tests/bin:" & getEnv("PATH"))   # the fake claude
+    putEnv("FAKE_LOG", root & "/calls")
+    putEnv("FAKE_PLAN", root & "/plan.json")
   except: fail("cannot set the environment")
   # a coordinator: a fixer commits in its own worktree, a reviewer reads it
   let repo = root & "/proj/repo"
@@ -143,3 +148,24 @@ proc cli*(args: openArray[string]; session = Sid): Ran =
   var argv = @[hitlBin(), "--session=" & session.substr(0, 7)]
   for a in args: argv.add a
   run(Job(argv: argv, timeoutMs: 120_000))
+
+proc resetState*() =
+  ## Patched.setUp: every test starts without briefs, drafts or pages.
+  try: removeDir(path(tmp() & "/state")) except: discard
+
+proc fakeModel*(plan: string) =
+  ## The plan the fake claude answers from (tests/fakeclaude.nim); forgets earlier calls.
+  writeText(tmp() & "/plan.json", plan)
+  try: removeDir(path(tmp() & "/calls")) except: discard
+
+proc calls*(): seq[string] =
+  ## The prompts the fake claude got, in order.
+  result = @[]
+  var n = 0
+  while fileExists(tmp() & "/calls/call-" & $n & ".prompt"):
+    result.add (try: readFile(tmp() & "/calls/call-" & $n & ".prompt") except: "")
+    inc n
+
+proc callArgv*(n: int): seq[string] =
+  let t = try: readFile(tmp() & "/calls/call-" & $n & ".argv") except: "[]"
+  fromJson(t, seq[string]).get(@[])

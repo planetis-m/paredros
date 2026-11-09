@@ -1,9 +1,8 @@
-## test_hitl.py ConfigTests. The prompt and page parts of these tests follow in
-## tconfig_briefs once briefs and pages are ported.
+## test_hitl.py ConfigTests. test_the_script_passes_its_config_on is in treview.
 
 import std/[os, strutils, opt, result, envvars]
 import fixtures
-import ../hitl/core
+import ../hitl/[core, briefs]
 
 setUp()
 let example = (try: os.getCurrentDir() except: ".") & "/examples/nimony.hitl.json"
@@ -12,12 +11,17 @@ block test_defaults_without_a_file:  # test_hitl.py::ConfigTests::test_defaults_
   let cfg = readConfig(tmp() & "/nowhere", "").get(Config(spec: "x"))
   check cfg.spec == "" and cfg.reader == "a developer of this project" and
     cfg.users == "the project's users" and cfg.compare.isNone, "the defaults"
+  check "There is no spec." in promptFor(cfg, "x"), "no spec line"
+  check "for the project's users" in promptFor(cfg, "x"), "the default users"
 
 block test_the_nimony_example:  # test_hitl.py::ConfigTests::test_the_nimony_example
   let cfg = readConfig("", example).get(Config())
   check cfg.spec == "doc/language.md", "spec"
   let c = cfg.compare.get(Compare())
   check c.label == "Compare with Nim", "compare label"
+  let p = promptFor(cfg, "x")
+  check "for people writing Nimony code" in p, "the config's users"
+  check "The spec, what the code must agree with, is doc/language.md." in p, "the spec line"
   check expand(c.allow[1], "/s") == getEnv("HOME") & "/Projects/Nim/bin/nim r --nimcache:/s/cache",
     "{home} and {scratch} are expanded"
 

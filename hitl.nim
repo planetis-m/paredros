@@ -6,7 +6,7 @@
 ## no extra reporting. Control stays with the session.
 
 import std/[syncio, strutils, opt, smartcli]
-import hitl/core
+import hitl/[core, store, review, briefs]
 
 type Options = object   ## the parsed command line, as the commands use it
   session, config: string
@@ -64,6 +64,20 @@ proc cmdShow(o: Options; agent: string; n: int) =
     echo "\n## ", (if a.finished: "final report" else: "latest message")
     echo report
 
+proc cmdBrief(o: Options; items: seq[string]; model: string; force: bool; jobs: int) =
+  var numbers: seq[int] = @[]
+  for x in items: numbers.add intOption("N", x, 0)
+  let s = pickSession(o.session)
+  var d = collect(s.path, o.config, withDiff = false)
+  var before: seq[int] = @[]
+  for it in loadLedger(d.session).items: before.add it.id
+  let led = split(d, model)
+  for it in led.items:
+    if it.id notin before: echo "#", it.id, ": new item: ", it.title
+  d = collect(s.path, o.config)
+  for r in generateAll(d, numbers, model, force, jobs):
+    echo "#", r.n, ": ", (if r.state == bsFailed: "failed: " & r.error else: $r.state)
+
 proc notYet(what: string) = die("hitl: " & what & " is not ported yet")
 
 # ------------------------------------------------------------------------ main
@@ -99,7 +113,8 @@ Options:
   of cmdStatus: cmdStatus(o)
   of cmdShow: cmdShow(o, cli.agent, intOption("-n", cli.n, 8))
   of cmdReview: notYet("review")
-  of cmdBrief: notYet("brief")
+  of cmdBrief: cmdBrief(o, cli.item, (if cli.model.len > 0: cli.model else: "opus"), cli.force,
+                        intOption("--jobs", cli.jobs, 4))
   of cmdCompanion: notYet("companion")
   of cmdServe: notYet("serve")
   of cmdDirections: notYet("directions")

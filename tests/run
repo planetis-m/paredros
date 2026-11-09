@@ -4,6 +4,8 @@
 set -e
 cd "$(dirname "$0")/.."
 names=${*:-$(ls tests/t*.nim | sed 's|tests/||; s|\.nim$||')}
+./build.sh tests/fakeclaude.nim nimcache/tests/bin/claude > nimcache/build-fakeclaude.log 2>&1 ||
+  { grep -v '^\[' nimcache/build-fakeclaude.log; exit 1; }
 fails=0
 for mode in debug release; do
   flags=""; [ $mode = release ] && flags="-d:release"
