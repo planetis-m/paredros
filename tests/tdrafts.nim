@@ -1,124 +1,138 @@
-## test_hitl.py's draft and companion tests: ReviewTests.test_only_page_decisions_are_drafts,
+## Decisions and the companion's setup (test_hitl.py ReviewTests.test_only_page_decisions_are_drafts,
 ## test_decisions_draft_stale_and_delivered, test_companion_setup_builds_its_arguments, and
-## WorkItemTests.test_page_identity_survives_new_material_and_rewritten_briefs.
+## WorkItemTests.test_page_identity_survives_new_material_and_rewritten_briefs).
 
-import std/[syncio, strutils, os, opt, tables, result, envvars]
+import std/[strutils, os, envvars, assertions]
 import kroki
 import fixtures
-import ../hitl/[core, store, review, drafts, companion]
+import ../hitl/[core, items, review, drafts, companion]
 
 setUp()
 let example = (try: os.getCurrentDir() except: ".") & "/examples/nimony.hitl.json"
-let sid = SessionId(Sid)
-let solo = SessionId(Solo)
 
-proc readOr(p: string): string = (try: readFile(p) except: "")
+proc liveTips(desk: Desk): seq[ItemTip] =
+  tips(workItems(desk, sources(desk.transcript), withDiff = false))
 
-proc stateOf(s: SessionId; spath, id: string): DraftState =
-  for x in draftsState(s, spath, "", initTable[int, string]()):
-    if x.id == id: return x
-  fail("no draft " & id)
+proc draft(desk: Desk; id: DraftId): Draft =
+  ## The draft as the page's Copy finds it: facts checked against the code now.
+  result = Draft()
+  var found = false
+  for d in drafts(desk, liveTips(desk)):
+    if d.id == id:
+      result = d
+      found = true
+  assert found, "no draft " & $id
+
+proc save(desk: Desk; item: int; question, option: string; code, brief = none[string]()): Draft =
+  let key = DecisionKey(item: ItemId(item), did: decisionId(question))
+  try: result = decide(desk, key, question, option, code, brief)
+  except: quit "cannot save a decision"
 
 proc briefJson(inputs: string): string = "{\"inputs\": \"" & inputs & "\", \"brief\": {\"summary\": \"s\"}}"
 
-type Perms = object
-  allow, deny: seq[string]
-type Profile = object
-  permissions: Perms
+type
+  Permissions = object
+    allow, deny: seq[string]
+  Settings = object
+    permissions: Permissions
 
-proc profile(args: seq[string]): Perms =
-  let f = args[args.find("--settings") + 1]
-  fromJson(readOr(f), Profile).get(Profile()).permissions
+proc profile(args: seq[string]): Permissions =
+  fromJson(readOr(args[args.find("--settings") + 1]), Settings).get(Settings()).permissions
 
-block test_only_page_decisions_are_drafts:  # test_hitl.py::ReviewTests::test_only_page_decisions_are_drafts
+block only_page_decisions_are_drafts:  # ReviewTests.test_only_page_decisions_are_drafts
   resetState()
-  let d = draftDir(sid)
-  writeText(d & "/d1.md", "status: draft\nfacts:\n- ref master 0000000\n---\nDrop f7. (d1, approved by me)\n")
-  check allDrafts(sid).len == 0, "an old companion draft is no decision"
-  let dr = decide(sid, spathOf(Sid), 7, "abc", "Q?", "Yes").get(Draft())
-  check dr.id == "d2", "the next number"
-  check not readOr(dr.path).startsWith("status:"), "saving is the approval"
+  let desk = deskOf(Sid)
+  writeText(draftDir(desk.id) & "/d1.md", "status: draft\nfacts:\n- ref master 0000000\n---\nDrop f7. (d1, approved by me)\n")
+  assert drafts(desk, @[]).len == 0, "an old companion draft is no decision"
+  let d = save(desk, 7, "Q?", "Yes")
+  assert $d.id == "d2", "the next number"
+  assert not readOr(draftDir(desk.id) & "/d2.md").startsWith("status:"), "saving is the approval"
 
-block test_decisions_draft_stale_and_delivered:  # test_hitl.py::ReviewTests::test_decisions_draft_stale_and_delivered
+block decisions_draft_stale_and_delivered:  # ReviewTests.test_decisions_draft_stale_and_delivered
   resetState()
-  let spath = spathOf(Sid)
-  let before = readOr(spath)
-  let p = cachePath(sid, 7)
+  let desk = deskOf(Sid)
+  let before = readOr(desk.transcript)
+  let p = briefPath(desk.id, ItemId(7))
   writeText(p, briefJson("h1"))
   let q = "Allow a call as a field default?"
-  let did = decisionId(q)
-  let dr = decide(sid, spath, 7, did, q, "Yes", brief = "h1").get(Draft())
-  check "My decision: Yes. (d" in dr.text, "the draft text"
-  var st = stateOf(sid, spath, dr.id)
-  check st.stale.len == 0 and st.delivered.isNone, "fresh"
-  let again = decide(sid, spath, 7, did, q, "No", brief = "h1").get(Draft())
-  check again.id == dr.id, "choosing again rewrites the same draft"
-  check "My decision: No. (d" in again.text, "with the new answer"
+  let d = save(desk, 7, q, "Yes", brief = some("h1"))
+  assert "My decision: Yes. (d" in d.text, "the draft text"
+  var now = draft(desk, d.id)
+  assert now.stale.len == 0 and now.delivered.isNone and refusal(now).isNone, "fresh"
+  let again = save(desk, 7, q, "No", brief = some("h1"))
+  assert again.id == d.id, "choosing again rewrites the same draft"
+  assert "My decision: No. (d" in again.text, "with the new answer"
   writeText(p, briefJson("h2"))
-  st = stateOf(sid, spath, dr.id)
-  var evidence = false
-  for m in st.stale:
-    if "new evidence" in m: evidence = true
-  check evidence, "a rewritten brief makes it stale"
-  discard decide(sid, spath, 7, did, q, "No", brief = "h2")   # Save again: the same draft,
-  check stateOf(sid, spath, dr.id).stale.len == 0, "resting on today's facts"
-  discard decide(sid, spath, 7, did, q, "No", code = "0123abcd", brief = "h2")
-  check "The code changed after you chose." in stateOf(sid, spath, dr.id).stale, "item 7 has no such code"
+  now = draft(desk, d.id)
+  assert now.stale == {staleBrief} and refusal(now).isSome, "a rewritten brief makes it stale"
+  discard save(desk, 7, q, "No", brief = some("h2"))   # Save again: the same draft,
+  assert draft(desk, d.id).stale.len == 0, "resting on today's facts"
+  discard save(desk, 7, q, "No", code = some("0123abcd"), brief = some("h2"))
+  assert draft(desk, d.id).stale == {staleCode}, "item 7 has no such code"
+  try: withdraw(desk, d.id)
+  except: quit "cannot withdraw"
+  assert drafts(desk, @[]).len == 0, "Undo withdraws it"
+  assert $save(desk, 7, q, "Yes").id == "d2", "and its number is never used again"
   writeText(p, briefJson("h3"))
-  writeText(spath, before & user(again.text, "2026-11-09T09:00:00Z") & "\n")   # the human pasted it
-  st = stateOf(sid, spath, dr.id)
-  check runeHead(st.delivered.get(""), 16) == "2026-11-09T09:00", "delivered"
-  check st.stale.len == 0, "a delivered draft is never stale"
-  writeText(spath, before)
+  writeText(desk.transcript, before & user(again.text.replace("(d1,", "(d2,"), "2026-11-09T09:00:00Z") & "\n")
+  now = draft(desk, DraftId(2))   # the human pasted it
+  assert now.delivered.get("").firstRunes(16) == "2026-11-09T09:00", "delivered"
+  assert now.stale.len == 0, "a delivered draft is never stale"
+  assert refusal(now).get("").startsWith("already sent"), "nor copied again"
+  writeText(desk.transcript, before)
 
-block test_companion_setup_builds_its_arguments:  # test_hitl.py::ReviewTests::test_companion_setup_builds_its_arguments
+block companion_setup_builds_its_arguments:  # ReviewTests.test_companion_setup_builds_its_arguments
   resetState()
-  var (cwd, args) = companionSetup(sid, spathOf(Sid), "")
-  check cwd == tmp() & "/proj/repo", "the session's directory"
+  var args: seq[string] = @[]
+  try: args = companionArgs(deskOf(Sid))
+  except: quit "no companion arguments"
   var perms = profile(args)
-  check "Bash(git push:*)" in perms.deny, "git push is denied"
-  check "--strict-mcp-config" in args, "no MCP tools"
+  assert "Bash(git push:*)" in perms.deny, "git push is denied"
+  assert "--strict-mcp-config" in args, "no MCP tools"
   for r in perms.allow:
-    check hitlPath() notin r, "no hitl command: " & r
+    assert getAppFilename() notin r, "no hitl command: " & r
   let system = args[args.find("--append-system-prompt") + 1]
-  check "Compare" notin system, "no config: no compare action"
-  check "{" notin system, "every field filled"
-  (cwd, args) = companionSetup(sid, spathOf(Sid), example)
+  assert "Compare" notin system, "no config: no compare action"
+  assert "{" notin system, "every field filled"
+  try: args = companionArgs(deskOf(Sid, some(example)))
+  except: quit "no companion arguments"
   perms = profile(args)
   let scratch = tmp() & "/state/hitl/scratch/" & Sid.substr(0, 7)
-  check "Bash(" & getEnv("HOME") & "/Projects/Nim/bin/nim r --nimcache:" & scratch & "/cache:*)" in perms.allow,
+  assert "Bash(" & getEnv("HOME") & "/Projects/Nim/bin/nim r --nimcache:" & scratch & "/cache:*)" in perms.allow,
     "the compare command"
-  check "Compare with Nim, when the human asks" in args[args.find("--append-system-prompt") + 1], "the compare action"
+  assert "Compare with Nim, when the human asks" in args[args.find("--append-system-prompt") + 1], "the compare action"
 
-block test_page_identity_survives_new_material_and_rewritten_briefs:  # test_hitl.py::WorkItemTests::test_page_identity_survives_new_material_and_rewritten_briefs
+block page_identity_survives_new_material_and_rewritten_briefs:  # WorkItemTests.test_page_identity_survives_new_material_and_rewritten_briefs
   resetState()
-  let spath = spathOf(Solo)
+  let desk = deskOf(Solo)
   let answer = """{"summary": "s", "open_decisions": [{"question": "Escape both?", "options": ["yes", "no"]}]}"""
   fakeModel("""{"split": [{"title": "Parser accepts empty input", "handles": ["C1", "T1"]}], "brief": """ & answer & "}")
   discard cli(["brief"], Solo)
-  let led = loadLedger(solo)
-  check led.items.len == 1 and led.items[0].id == 1 and led.items[0].title == "Parser accepts empty input", "one item"
-  let did = decisionId("Escape both?")
-  let dr = decide(solo, spath, 1, did, "Escape both?", "yes",
-                  code = codeTips(spath, "").getOrDefault(1, "")).get(Draft())
+  let ledger = loadLedger(desk.id)
+  assert ledger.items.len == 1 and ledger.items[0].id == ItemId(1) and
+    ledger.items[0].title == "Parser accepts empty input", "one item"
+  let d = save(desk, 1, "Escape both?", "yes", code = tipOf(liveTips(desk), ItemId(1)))
   # the human says more; a later run rewrites every brief and the model files all it
   # is shown under a new item: only the new turn is shown, and item 1 keeps its number
-  let before = readOr(spath)
-  writeText(spath, before & user("now the quote escaping", "2026-11-09T10:40:00Z") & "\n")
+  let before = readOr(desk.transcript)
+  writeText(desk.transcript, before & user("now the quote escaping", "2026-11-09T10:40:00Z") & "\n")
   fakeModel("""{"split": [{"title": "Quotes are escaped", "handles": ["C*", "T*", "A*"]}], "brief": """ & answer & "}")
   discard cli(["brief", "--force"], Solo)
   let prompts = calls()
-  check "parse: accept empty input" notin prompts[0], "placed material is not offered again"
-  check "now the quote escaping" in prompts[0], "the new turn is"
-  let led2 = loadLedger(solo)
-  check led2.items.len == 2 and led2.items[0].id == 1 and led2.items[0].title == "Parser accepts empty input" and
-    led2.items[1].id == 2 and led2.items[1].title == "Quotes are escaped", "item 1 keeps its number"
-  for k in led.items[0].sources:
-    check k in led2.items[0].sources, "a source stays in its item"
-  check stateOf(solo, spath, dr.id).stale.len == 0, "same code, same evidence: the decision holds"
+  assert "parse: accept empty input" notin prompts[0], "placed material is not offered again"
+  assert "now the quote escaping" in prompts[0], "the new turn is"
+  let later = loadLedger(desk.id)
+  assert later.items.len == 2 and later.items[0].id == ItemId(1) and
+    later.items[0].title == "Parser accepts empty input" and later.items[1].id == ItemId(2) and
+    later.items[1].title == "Quotes are escaped", "item 1 keeps its number"
+  for k in ledger.items[0].sources:
+    assert k in later.items[0].sources, "a source stays in its item"
+  assert draft(desk, d.id).stale.len == 0, "same code, same evidence: the decision holds"
   let dir = tmp() & "/id-out"
-  discard build(spath, "", dir)
-  check "data-item=\"1\" data-did=\"" & did & "\"" in readOr(dir & "/i1.html"), "the decision keeps its id"
-  writeText(spath, before)
+  try: discard build(desk, dir)
+  except: quit "the build failed"
+  assert "data-item=\"1\" data-did=\"" & $decisionId("Escape both?") & "\"" in readOr(dir & "/i1.html"),
+    "the decision keeps its id"
+  writeText(desk.transcript, before)
 
 tearDown()

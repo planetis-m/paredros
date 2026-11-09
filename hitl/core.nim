@@ -1,146 +1,74 @@
-## The shared base of hitl: state paths, the project config, the one adapter to
-## Claude Code's transcript format, git, the process runner and the agents.
-## Everything here is read only, except the state directory.
+## The shared base of hitl: the session it works on with its project's config,
+## the state paths, the one adapter to Claude Code's transcript format, and
+## the process runner with git on it. Nothing here writes, except under the
+## state directory.
 
-import std/[syncio, strutils, os, paths, dirs, files, envvars, times, tables, opt, result, osproc,
-            monotimes, algorithm, rex, sha1]
-from std/unicode import runeLen, runeSubStr, validateUtf8
+import std/[syncio, strutils, os, dirs, files, paths, envvars, opt, result, osproc, algorithm, rex]
+from std/unicode import runeLen, runeSubStr
 import kroki
 
 type
   SessionId* = distinct string   ## a Claude Code session id (a uuid)
-  StateKind* = enum              ## the folders under $STATE, one per session
-    skReview = "review", skBriefs = "briefs", skDirections = "directions", skScratch = "scratch"
+  StateDir* = enum               ## hitl's folders under $STATE, one per session in each
+    sdReview = "review", sdBriefs = "briefs", sdDirections = "directions", sdScratch = "scratch"
 
-proc `==`*(a, b: SessionId): bool {.borrow.}
-proc `$`*(s: SessionId): string {.borrow.}
-proc short*(s: SessionId): string = string(s).substr(0, 7)
+func `==`*(a, b: SessionId): bool {.borrow.}
+func `$`*(id: SessionId): string {.borrow.}
+
+func short*(id: SessionId): string = string(id).substr(0, 7)
   ## The first 8 characters: the session's folder name and `--session` value.
-
-# ------------------------------------------------------------------- errors
-
-proc die*(msg: string) {.noreturn.} =
-  ## sys.exit(msg): the message on stderr, exit code 1.
-  stderr.write msg & "\n"
-  quit(1)
 
 # -------------------------------------------------------------------- paths
 
 proc homeDir*(): string = getEnv("HOME")
-
-proc claudeDir*(): string = getEnv("CLAUDE_CONFIG_DIR", homeDir() & "/.claude")
-proc projectsDir*(): string = claudeDir() & "/projects"
 proc stateRoot*(): string = getEnv("XDG_STATE_HOME", homeDir() & "/.local/state") & "/hitl"
 
-proc state*(kind: StateKind; sid: SessionId): string =
-  ## The one place a session's state folder is named: $STATE/<kind>/<first 8 of the id>.
-  stateRoot() & "/" & $kind & "/" & sid.short
+proc stateDir*(dir: StateDir; id: SessionId): string =
+  ## The one place a session's state folder is named: $STATE/<dir>/<first 8 of the id>.
+  stateRoot() & "/" & $dir & "/" & id.short
 
 proc companionsFile*(): string = stateRoot() & "/companions"
-  ## session ids of companion forks, one per line
+  ## The session ids of companion forks, one per line.
 
 proc appDir*(): string =
-  ## The repository the binary was built in: the nearest directory above it that
-  ## holds companion.md (for bin/hitl, the repository's root). The pages' static
-  ## files and the companion prompt are read from there, as Python reads them
-  ## beside its source.
-  var d = parentDir(getAppFilename())
-  while d.len > 1 and not fileExists(d & "/companion.md"): d = parentDir(d)
-  if fileExists(d & "/companion.md"): d else: parentDir(parentDir(getAppFilename()))
-
-proc ensureDir*(dir: string) =
-  try: createDir(path(dir))
-  except: discard
-
-proc writeAtomic*(path, text: string) =
-  ## Temp file, then rename: a reader gets the old file or the new one.
-  let tmp = parentDir(path) & "/." & extractFilename(path) & ".tmp"
-  try:
-    writeFile(tmp, text)
-    moveFile(paths.path(tmp), paths.path(path))
-  except:
-    die("hitl: cannot write " & path)
+  ## The repository the binary was built in: the nearest directory above it
+  ## that holds companion.md. The pages' static files and the companion's
+  ## prompt are read from there.
+  result = parentDir(getAppDir())
+  for dir in parentDirs(getAppDir()):
+    if fileExists(dir & "/companion.md"): return dir
 
 proc readText*(path: string): Opt[string] =
   try: some(readFile(path)) except: none[string]()
 
-proc isDir*(path: string): bool = dirExists(path)
+proc writeAtomic*(path, text: string) {.raises.} =
+  ## Temp file, then rename: a reader gets the old file or the new one.
+  createDir(paths.path(parentDir(path)))
+  let tmp = parentDir(path) & "/." & extractFilename(path) & ".tmp"
+  writeFile(tmp, text)
+  moveFile(paths.path(tmp), paths.path(path))
 
-# ------------------------------------------------------------------ strings
-
-proc fixUtf8*(s: string): string =
-  ## Python's errors="replace": an invalid UTF-8 byte becomes U+FFFD.
-  if validateUtf8(s) < 0: return s
-  result = ""
-  var pos = 0
-  while pos < s.len:
-    let c = ord(s[pos])
-    let n = if c < 0x80: 1 elif c shr 5 == 0b110: 2 elif c shr 4 == 0b1110: 3
-            elif c shr 3 == 0b11110: 4 else: 0
-    if n > 0 and pos + n <= s.len and validateUtf8(s.substr(pos, pos + n - 1)) < 0:
-      result.add s.substr(pos, pos + n - 1)
-      pos += n
-    else:
-      result.add "\xEF\xBF\xBD"
-      inc pos
-
-proc runeSlice*(s: string; first, last: int): string =
-  ## s[first:last] on code points, Python's slice: negative counts from the end.
-  let n = s.runeLen
-  var a = if first < 0: max(n + first, 0) else: min(first, n)
-  var b = if last < 0: max(n + last, 0) else: min(last, n)
-  if b <= a: return ""
-  result = s.runeSubStr(a, b - a)
-
-proc runeHead*(s: string; n: int): string = runeSlice(s, 0, n)
-proc runeTail*(s: string; n: int): string =
-  ## s[-n:]
-  if n <= 0: s else: runeSlice(s, -n, high(int))
+# ---------------------------------------------------------------------- text
 
 proc collapse*(s: string): string =
-  ## " ".join(s.split())
+  ## The words of s, one space between them.
   result = ""
-  for w in s.splitWhitespace:
+  for word in s.splitWhitespace:
     if result.len > 0: result.add ' '
-    result.add w
+    result.add word
 
-proc short*(text: string; n = 90): string =
-  let t = collapse(text)
-  if t.runeLen <= n: t else: t.runeHead(n - 1) & "…"
+proc firstRunes*(s: string; n: int): string = s.runeSubStr(0, n)
+  ## At most the first n code points: a cut never splits a character.
 
-proc fill*(text: string; fields: openArray[(string, string)]): string =
-  ## str.format with named fields, in one pass: a value is never filled again.
-  result = ""
-  var i: Natural = 0
-  while i < text.len:
-    if text[i] == '{':
-      let close = text.find('}', i + 1)
-      if close > i:
-        let name = text.substr(i + 1, close - 1)
-        var hit = false
-        for (k, v) in fields:
-          if k == name:
-            result.add v
-            hit = true
-            break
-        if hit:
-          i = close + 1
-          continue
-    result.add text[i]
-    inc i
+proc lastRunes*(s: string; n: int): string = s.runeSubStr(-n)
+  ## At most the last n code points.
 
-proc mtimeSeconds*(path: string): float =
-  let ns = try: getLastModificationTime(path) except: 0'i64
-  float(ns) / 1e9
+proc oneLine*(text: string; n = 90): string =
+  ## One line of at most n code points, ending in "…" when cut.
+  let line = collapse(text)
+  if line.runeLen <= n: line else: line.firstRunes(n - 1) & "…"
 
-proc localStamp*(withSeconds = false; sep = ' '): string =
-  ## time.strftime("%Y-%m-%d %H:%M") in local time; with seconds and "T" for briefs.
-  let t = local(getTime())
-  result = $t.year & "-" & align($ord(t.month), 2, '0') & "-" & align($t.monthday, 2, '0') &
-    $sep & align($t.hour, 2, '0') & ":" & align($t.minute, 2, '0')
-  if withSeconds: result.add ":" & align($t.second, 2, '0')
-
-# ------------------------------------------------------------------ process
+# ----------------------------------------------------------------- processes
 
 type
   Job* = object
@@ -148,286 +76,312 @@ type
     cwd*, input*: string
     timeoutMs*: int
   Ran* = object
-    code*: int             ## exit code; -1 when it could not start
+    started*: bool         ## false when the program could not be started
+    code*: int             ## the exit code
     output*, errors*: string
-    started*: bool
   Running = object
-    p: Process
-    ok: bool
+    job: Job
+    process: Opt[Process]
 
-proc launch(j: Job): Running =
+proc launch(job: Job): Running =
   ## Starts the job and hands it its whole input.
   # Known issue: bug-reports/105-osproc-pipes-inherited-by-later-children. Each
   # child gets its input and the end of it before the next one starts.
-  result = Running(ok: false)
+  result = Running(job: job, process: none[Process]())
   try:
-    result.p = startProcess(j.argv[0], workingDir = j.cwd, args = j.argv.toOpenArray(1, j.argv.high),
-                            options = {poUsePath})
-    result.ok = true
-    let inp = result.p.inputStream
-    if j.input.len > 0: inp.write(j.input)
-    inp.close()
+    let p = startProcess(job.argv[0], workingDir = job.cwd,
+      args = job.argv.toOpenArray(1, job.argv.high), options = {poUsePath})
+    result.process = some(p)
+    p.inputStream.write(job.input)
+    p.inputStream.close()
   except: discard
 
-proc collect(r: Running; j: Job): Ran =
+proc wait(r: Running): Ran =
   ## Reads what the job wrote and waits for it to end.
-  # Known issue: osproc has no `communicate`, so stdout is read to its end before
-  # stderr; a child that fills the stderr pipe first would wait for us. The
-  # timeout applies only once both pipes are closed.
-  if not r.ok: return Ran(code: -1, errors: "cannot start " & j.argv[0])
-  result = Ran(code: -1, started: true)
-  try:
-    result.output = fixUtf8(r.p.outputStream.readAll())
-    result.errors = fixUtf8(r.p.errorStream.readAll())
-    result.code = r.p.waitForExit(j.timeoutMs)
-    r.p.close()
-  except: discard
+  # Known issue: osproc has no `communicate`, so stdout is read to its end
+  # before stderr; a child that fills the stderr pipe first would wait for us.
+  # The timeout applies only once both pipes are closed.
+  case r.process
+  of None:
+    result = Ran(started: false, code: -1, errors: "cannot start " & r.job.argv[0])
+  of Some(p):
+    result = Ran(started: true, code: -1)
+    try:
+      result.output = p.outputStream.readAll()
+      result.errors = p.errorStream.readAll()
+      result.code = p.waitForExit(r.job.timeoutMs)
+      p.close()
+    except: discard
 
-proc run*(j: Job): Ran = collect(launch(j), j)
+proc run*(job: Job): Ran = wait(launch(job))
 
 proc runAll*(jobs: seq[Job]; parallel: int): seq[Ran] =
-  ## Runs every job, at most `parallel` at once; results in job order.
-  result = newSeq[Ran](jobs.len)
+  ## Runs every job, at most `parallel` at once; the results in job order.
+  result = @[]
   var running: seq[Running] = @[]
-  var next, done = 0
-  while done < jobs.len:
-    while next < jobs.len and next - done < max(parallel, 1):
-      running.add launch(jobs[next])
-      inc next
-    result[done] = collect(running[done], jobs[done])
-    inc done
+  for job in jobs:
+    if running.len - result.len >= max(parallel, 1):
+      result.add wait(running[result.len])
+    running.add launch(job)
+  while result.len < running.len:
+    result.add wait(running[result.len])
 
-proc git*(wd: string; args: openArray[string]; timeoutMs = 20_000): Opt[string] =
+proc git*(dir: string; args: openArray[string]; timeoutMs = 20_000): Opt[string] =
   ## Read-only git: never takes the index lock. None when git fails.
-  var argv = @["git", "--no-optional-locks", "-C", wd]
+  var argv = @["git", "--no-optional-locks", "-C", dir]
   for a in args: argv.add a
   let r = run(Job(argv: argv, timeoutMs: timeoutMs))
   if r.started and r.code == 0: some(r.output.strip(leading = false, chars = {'\n'}))
   else: none[string]()
 
 # --------------------------------------------------------------- transcripts
+# All knowledge of Claude Code's transcript format lives in this section and
+# the next two (ARCHITECTURE.md 5.1).
 
 type
-  RecKind* = enum rkOther, rkUser, rkAssistant
-  BlockKind* = enum bkOther, bkText, bkToolUse
-  Input* = object          ## the tool_use input fields hitl reads
+  RecKind* = enum rkOther = "other", rkUser = "user", rkAssistant = "assistant"
+  BlockKind* = enum bkOther = "other", bkText = "text", bkToolUse = "tool_use"
+  ToolInput* = object      ## the fields of a tool's input that hitl reads
     command*, description*, filePath*, pattern*, message*: string
-  Block* = object
+  Block* = object          ## one block of a message's content
     kind*: BlockKind
     text*, name*: string
-    input*: Input
-  ContentKind* = enum ckNone, ckText, ckBlocks
-  Rec* = object            ## one transcript line
+    input*: ToolInput
+  Rec* = object            ## one transcript record
     kind*: RecKind
     timestamp*, uuid*, cwd*: string
-    human*: bool           ## origin.kind == "human" or promptSource == "typed"
-    case content*: ContentKind
-    of ckNone: discard
-    of ckText: text*: string
-    of ckBlocks: blocks*: seq[Block]
-  Call* = object           ## a tool use and when it was made
-    timestamp*: string
-    tool*: Block
+    typed*: bool           ## the human typed it: origin.kind "human" or promptSource "typed"
+    blocks*: seq[Block]    ## message.content; a plain string is one text block
 
-proc str(dst: var string; p: var JsonParser) =
-  ## A string field; any other JSON type reads as absent, as Python's `.get` sees it.
-  if p.kind == jkString: readJson(dst, p, ufSkip) else: p.skipJson()
-
-proc readJson*(dst: var Input; p: var JsonParser; u: UnknownFieldPolicy) =
-  if p.kind != jkObject:
-    p.skipJson()
-    return
+proc readJson*(dst: var ToolInput; p: var JsonParser; u: UnknownFieldPolicy) =
+  # Tools put values of any JSON type under these names: only strings are ours.
   for f in p.jsonFields:
-    if f == "command": str(dst.command, p)
-    elif f == "description": str(dst.description, p)
-    elif f == "file_path": str(dst.filePath, p)
-    elif f == "pattern": str(dst.pattern, p)
-    elif f == "message": str(dst.message, p)
+    if p.kind != jkString: p.skipJson()
+    elif f == "command": readJson(dst.command, p, u)
+    elif f == "description": readJson(dst.description, p, u)
+    elif f == "file_path": readJson(dst.filePath, p, u)
+    elif f == "pattern": readJson(dst.pattern, p, u)
+    elif f == "message": readJson(dst.message, p, u)
     else: p.skipJson()
 
 proc readJson*(dst: var Block; p: var JsonParser; u: UnknownFieldPolicy) =
-  if p.kind != jkObject:
-    p.skipJson()
-    return
   for f in p.jsonFields:
-    if f == "type":
-      var t = ""
-      str(t, p)
-      dst.kind = if t == "text": bkText elif t == "tool_use": bkToolUse else: bkOther
-    elif f == "text": str(dst.text, p)
-    elif f == "name": str(dst.name, p)
+    if f == "type": readJson(dst.kind, p, u, bkOther)
+    elif f == "text": readJson(dst.text, p, u)
+    elif f == "name": readJson(dst.name, p, u)
     elif f == "input": readJson(dst.input, p, u)
     else: p.skipJson()
 
 proc readJson*(dst: var Rec; p: var JsonParser; u: UnknownFieldPolicy) =
-  if p.kind != jkObject:
-    p.parseError()
-    return
-  var originHuman, typed = false
   for f in p.jsonFields:
-    if f == "type":
-      var t = ""
-      str(t, p)
-      dst.kind = if t == "user": rkUser elif t == "assistant": rkAssistant else: rkOther
-    elif f == "timestamp": str(dst.timestamp, p)
-    elif f == "uuid": str(dst.uuid, p)
-    elif f == "cwd": str(dst.cwd, p)
+    if f == "type": readJson(dst.kind, p, u, rkOther)
+    elif f == "timestamp": readJson(dst.timestamp, p, u)
+    elif f == "uuid": readJson(dst.uuid, p, u)
+    elif f == "cwd": readJson(dst.cwd, p, u)
     elif f == "promptSource":
-      var s = ""
-      str(s, p)
-      typed = s == "typed"
+      var source = ""
+      readJson(source, p, u)
+      if source == "typed": dst.typed = true
     elif f == "origin":
-      if p.kind == jkObject:
-        for g in p.jsonFields:
-          if g == "kind":
-            var k = ""
-            str(k, p)
-            originHuman = k == "human"
-          else: p.skipJson()
-      else: p.skipJson()
+      for g in p.jsonFields:
+        if g == "kind":
+          var kind = ""
+          readJson(kind, p, u)
+          if kind == "human": dst.typed = true
+        else: p.skipJson()
     elif f == "message":
-      if p.kind == jkObject:
-        for g in p.jsonFields:
-          if g == "content":
-            case p.kind
-            of jkString:
-              var s = ""
-              readJson(s, p, u)
-              dst = Rec(kind: dst.kind, timestamp: dst.timestamp, uuid: dst.uuid, cwd: dst.cwd,
-                        content: ckText, text: s)
-            of jkArray:
-              var bs: seq[Block] = @[]
-              readJson(bs, p, u)
-              dst = Rec(kind: dst.kind, timestamp: dst.timestamp, uuid: dst.uuid, cwd: dst.cwd,
-                        content: ckBlocks, blocks: bs)
-            else: p.skipJson()
-          else: p.skipJson()
-      else: p.skipJson()
+      for g in p.jsonFields:
+        if g != "content": p.skipJson()
+        elif p.kind == jkString:
+          dst.blocks = @[Block(kind: bkText)]
+          readJson(dst.blocks[0].text, p, u)
+        else: readJson(dst.blocks, p, u)
     else: p.skipJson()
-  dst.human = originHuman or typed
 
 proc readJsonl*(path: string): seq[Rec] =
   ## Every readable record of a transcript; unreadable lines are skipped.
   result = @[]
-  let text = readText(path)
-  if text.isNone: return
-  for r in jsonLines[Rec](fixUtf8(text.get(""))):
+  for r in jsonLines[Rec](readText(path).get("")):
     if r.isOk: result.add r.get(Rec())
 
-iterator blocksOf(r: Rec): Block =
-  if r.content == ckBlocks:
-    for b in r.blocks: yield b
+type Call* = object   ## a tool use, when and where it was made
+  timestamp*, cwd*: string
+  tool*: Block
 
 iterator toolUses*(recs: seq[Rec]): Call =
   for r in recs:
     if r.kind == rkAssistant:
-      for b in r.blocksOf:
-        if b.kind == bkToolUse: yield Call(timestamp: r.timestamp, tool: b)
+      for b in r.blocks:
+        if b.kind == bkToolUse: yield Call(timestamp: r.timestamp, cwd: r.cwd, tool: b)
 
-iterator assistantTexts*(recs: seq[Rec]): (string, string) =
-  ## (timestamp, text) for every assistant text block, in order.
-  for r in recs:
-    if r.kind == rkAssistant:
-      for b in r.blocksOf:
-        if b.kind == bkText and b.text.strip.len > 0: yield (r.timestamp, b.text)
+iterator assistantTexts*(r: Rec): string =
+  ## The record's text blocks, if it is the session speaking.
+  if r.kind == rkAssistant:
+    for b in r.blocks:
+      if b.kind == bkText and not b.text.isEmptyOrWhitespace: yield b.text
 
-proc isHuman*(r: Rec): bool =
+proc isHuman*(r: Rec): bool = r.kind == rkUser and r.typed
   ## A message the human typed (not a tool result or an injected prompt).
-  r.kind == rkUser and r.human
-
-proc stripPasted(t: string): string =
-  ## re.sub(r"</?pasted_content[^>]*>", "", t)
-  result = ""
-  var i: Natural = 0
-  while i < t.len:
-    if t[i] == '<':
-      var j: Natural = i + 1
-      if j < t.len and t[j] == '/': inc j
-      if t.continuesWith("pasted_content", j):
-        let close = t.find('>', j)
-        if close >= 0:
-          i = close + 1
-          continue
-    result.add t[i]
-    inc i
 
 proc textOf*(r: Rec): string =
-  var t = ""
-  case r.content
-  of ckText: t = r.text
-  of ckBlocks:
-    var parts: seq[string] = @[]
-    for b in r.blocks:
-      if b.kind == bkText: parts.add b.text
-    t = parts.join(" ")
-  of ckNone: discard
-  stripPasted(t).strip
+  ## The text of a message, without the tags that mark pasted content.
+  var text = ""
+  for b in r.blocks:
+    if b.kind == bkText:
+      if text.len > 0: text.add ' '
+      text.add b.text
+  result = ""
+  var i: Natural = 0
+  while i < text.len:   # drops <pasted_content ...> and </pasted_content>
+    let close = text.find('>', i)
+    if text[i] == '<' and close > 0 and (text.continuesWith("pasted_content", i + 1) or
+        text.continuesWith("/pasted_content", i + 1)):
+      i = close + 1
+    else:
+      result.add text[i]
+      inc i
+  result = result.strip
 
-proc sessionCwd*(recs: seq[Rec]): Opt[string] =
-  for r in recs:
-    if r.cwd.len > 0: return some(r.cwd)
-  none[string]()
+# -------------------------------------------------------------------- agents
+
+let
+  cdTarget = re"""(?:^|[;&|(]\s*)(?:cd|pushd)\s+["']?(/[^\s"';&|)]+)"""
+  gitcTarget = re"""git\s+-C\s+["']?(/[^\s"';&|)]+)"""
+  anyPath = re"""(/[\w./-]+)"""
+
+iterator groups*(s: string; r: Regex): string =
+  ## The first group of every match of r in s, left to right.
+  var caps: seq[Capture] = @[]
+  var start = 0
+  while start <= s.len:
+    let (a, b) = findBounds(s, r, caps, start)
+    if a < 0: break
+    yield capture(s, caps, 0)
+    start = max(b + 1, a + 1)
+
+iterator dirsNamed*(command: string): string =
+  ## The directories a shell command enters: `cd`, `pushd` and `git -C` targets.
+  for d in groups(command, cdTarget): yield d
+  for d in groups(command, gitcTarget): yield d
+
+type Agent* = object   ## a subagent, as its transcript tells it
+  id*: string
+  description*, task*, report*: string
+  start*, last*: string    ## the times of its first and last records
+  workdir*: Opt[string]    ## the directory it worked in
+  recs*: seq[Rec]
+
+proc finalReport(recs: seq[Rec]): string =
+  ## The SubagentHandback message, else the last text the agent wrote.
+  result = ""
+  for c in toolUses(recs):
+    if c.tool.name == "SubagentHandback": result = c.tool.input.message
+  if result.len == 0:
+    for r in recs:
+      for text in assistantTexts(r): result = text
+
+proc workdirOf(recs: seq[Rec]; task: string): Opt[string] =
+  ## The directory an agent worked in: the most named `cd` or `git -C` target
+  ## that exists (the first named among equals); without any, a path in its task.
+  var named: seq[string] = @[]
+  for c in toolUses(recs):
+    if c.tool.name == "Bash":
+      for d in dirsNamed(c.tool.input.command): named.add d
+  if named.len == 0:
+    for d in groups(task, anyPath): named.add d
+  var tally: seq[(string, int)] = @[]   # in first-named order
+  for d in named:
+    var known = false
+    for t in tally.mitems:
+      if t[0] == d:
+        inc t[1]
+        known = true
+    if not known: tally.add (d, 1)
+  tally.sort(proc (a, b: (string, int)): int = cmp(b[1], a[1]))   # stable
+  result = none[string]()
+  for (d, _) in tally:
+    let dir = d.strip(leading = false, chars = {'/', '.'})
+    if dir.len > 0 and dirExists(dir): return some(dir)
+
+type Meta = object   ## agent-<id>.meta.json
+  description: string
+
+proc agents*(transcript: string): seq[Agent] =
+  ## The session's subagents, by start time.
+  var files: seq[string] = @[]
+  try:
+    for (kind, p) in walkDir(paths.path(transcript.changeFileExt("") & "/subagents")):
+      let name = extractFilename($p)
+      if name.startsWith("agent-") and name.endsWith(".jsonl"): files.add $p
+  except: discard
+  files.sort()
+  result = @[]
+  for f in files:
+    let recs = readJsonl(f)
+    var task = ""
+    if recs.len > 0 and recs[0].kind == rkUser:
+      for b in recs[0].blocks:   # PORTBUG(B4): every block's text, not only text blocks
+        if task.len > 0: task.add ' '
+        task.add b.text
+    let meta = fromJson(readText(f.changeFileExt("meta.json")).get("{}"), Meta).get(Meta())
+    result.add Agent(id: extractFilename(f).changeFileExt("").substr(6),
+                     description: meta.description, task: task, report: finalReport(recs),
+                     start: (if recs.len > 0: recs[0].timestamp else: ""),
+                     last: (if recs.len > 0: recs[^1].timestamp else: ""),
+                     workdir: workdirOf(recs, task), recs: recs)
+  result.sort(proc (a, b: Agent): int = cmp(a.start, b.start))
 
 # ------------------------------------------------------------------ sessions
 
-type
-  Session* = object
-    mtime*: float
-    id*: SessionId
-    path*, project*: string
+type Session = object
+  id: SessionId
+  transcript: string   ## <projects>/<project>/<id>.jsonl
+  project: string
+  mtime: int64
 
-proc sessions*(): seq[Session] =
+proc sessions(): seq[Session] =
   ## Main transcripts, newest first.
+  let projects = getEnv("CLAUDE_CONFIG_DIR", homeDir() & "/.claude") & "/projects"
   result = @[]
-  if not isDir(projectsDir()): return
   try:
-    for (kind, pp) in walkDir(path(projectsDir())):
-      if kind notin {pcDir, pcLinkToDir}: continue
-      let proj = $pp
-      for (k2, fp) in walkDir(pp):
-        let p = $fp
-        if k2 in {pcFile, pcLinkToFile} and p.endsWith(".jsonl"):
-          let name = extractFilename(p)
-          result.add Session(mtime: mtimeSeconds(p), id: SessionId(name.substr(0, name.len - 7)),
-                             path: p, project: extractFilename(proj))
+    for (kind, dir) in walkDir(paths.path(projects)):
+      if kind in {pcDir, pcLinkToDir}:
+        for (k, f) in walkDir(dir):
+          if k in {pcFile, pcLinkToFile} and ($f).endsWith(".jsonl"):
+            let mtime = try: getLastModificationTime($f) except: 0'i64
+            result.add Session(id: SessionId(extractFilename($f).changeFileExt("")),
+                               transcript: $f, project: extractFilename($dir), mtime: mtime)
   except: discard
   result.sort(proc (a, b: Session): int =
     result = cmp(b.mtime, a.mtime)
-    if result == 0: result = cmp(string(b.id), string(a.id))
-    if result == 0: result = cmp(b.path, a.path)
-    if result == 0: result = cmp(b.project, a.project))
+    if result == 0: result = cmp(string(b.id), string(a.id)))
 
-proc companionIds*(): seq[string] =
+proc companionIds*(): seq[SessionId] =
   result = @[]
-  let t = readText(companionsFile())
-  if t.isSome:
-    for w in t.get("").splitWhitespace: result.add w
+  for line in readText(companionsFile()).get("").splitWhitespace: result.add SessionId(line)
 
-proc projectName*(dir: string): string =
-  ## re.sub(r"[^A-Za-z0-9]", "-", dir)
+proc projectName(dir: string): string =
+  ## Claude Code's project folder name for a directory: non-alphanumerics as '-'.
   result = dir
   for c in result.mitems:
     if c notin {'A'..'Z', 'a'..'z', '0'..'9'}: c = '-'
 
-proc pickSession*(spec: string): Session =
-  ## The newest session matching spec (an id prefix or a project-name substring),
-  ## else the newest one of the current directory's project, else the newest.
-  let forks = companionIds()   # a fork is a full copy of the session's transcript
+proc pickSession(spec: Opt[string]): Opt[Session] =
+  ## The newest session matching spec (an id prefix or a project-name
+  ## substring), else the newest of the current directory's project, else the
+  ## newest. Companion forks, full copies of a session, are never taken.
+  let forks = companionIds()
   var all: seq[Session] = @[]
   for s in sessions():
-    if $s.id notin forks: all.add s
-  var hits: seq[Session] = @[]
-  if spec.len > 0:
-    for s in all:
-      if ($s.id).startsWith(spec) or spec in s.project: hits.add s
-  else:
-    let here = projectName(try: os.getCurrentDir() except: "")
-    for s in all:
-      if s.project == here: hits.add s
-    if hits.len == 0: hits = all
-  if hits.len == 0:
-    die(if spec.len > 0: "hitl: no session matches " & spec else: "hitl: no Claude Code session found")
-  hits[0]
+    if s.id notin forks: all.add s
+  let here = projectName(try: os.getCurrentDir() except: "")
+  result = none[Session]()
+  for s in all:
+    let x = spec.get("")
+    if (spec.isSome and (string(s.id).startsWith(x) or x in s.project)) or
+        (spec.isNone and s.project == here):
+      return some(s)
+  if spec.isNone and all.len > 0: result = some(all[0])
 
 # -------------------------------------------------------------------- config
 
@@ -435,161 +389,55 @@ type
   Compare* = object
     label*, prompt*: string
     allow*: seq[string]
-  Config* = object
-    spec*: string
+  Config* = object   ## .hitl.json; every key may be left out (README, "Config")
+    spec*: Opt[string]
     reader*: string = "a developer of this project"
     users*: string = "the project's users"
     compare*: Opt[Compare]
 
-proc readConfig*(cwd: string; configFile: string): Result[Config, string] =
-  ## The project's optional settings (README, "Config"); every key may be left out.
-  ## The error is the message hitl exits with.
-  let p = if configFile.len > 0: configFile else: (if cwd.len > 0: cwd else: ".") & "/.hitl.json"
-  if not fileExists(p):
-    if configFile.len > 0: return err[Config, string]("hitl: no config file " & p)
+proc readConfig*(dir: string; file: Opt[string]): Result[Config, string] =
+  ## The project's config: `file`, else .hitl.json in dir if there is one.
+  let path = file.get(dir & "/.hitl.json")
+  if not fileExists(path):
+    if file.isSome: return err[Config, string]("no config file " & path)
     return ok[Config, string](Config())
-  let text = readText(p)
-  if text.isNone: return err[Config, string]("hitl: cannot read " & p)
-  var cfg = Config()
-  case fromJson(text.get(""), Config, unknownFields = ufReject)
-  of Ok(c): cfg = c
-  of Err(e): return err[Config, string]("hitl: cannot read " & p & ": " & $e)
-  if cfg.compare.isSome:
-    let c = cfg.compare.get(Compare())
-    if c.label.len == 0 or c.prompt.len == 0:
-      return err[Config, string]("hitl: compare in " & p & " needs a label and a prompt")
-  ok[Config, string](cfg)
-
-proc loadConfig*(cwd: string; configFile: string): Config =
-  case readConfig(cwd, configFile)
-  of Ok(c): result = c
-  of Err(e): die(e)
+  case fromJson(readText(path).get(""), Config, unknownFields = ufReject)
+  of Ok(cfg):
+    result = ok[Config, string](cfg)
+    case cfg.compare
+    of Some(c):
+      if c.label.len == 0 or c.prompt.len == 0:
+        result = err[Config, string]("compare in " & path & " needs a label and a prompt")
+    of None: discard
+  of Err(e): result = err[Config, string]("cannot read " & path & ": " & $e)
 
 proc expand*(text, scratch: string): string =
-  text.replace("{scratch}", scratch).replace("{home}", homeDir())
+  ## A compare text with {scratch} and {home} filled in.
+  text.multiReplace([("{scratch}", scratch), ("{home}", homeDir())])
 
-# --------------------------------------------------------------------- agents
+# ---------------------------------------------------------------------- desk
 
-let
-  cdRe = re"""(?:^|[;&|(]\s*)(?:cd|pushd)\s+["']?(/[^\s"';&|)]+)"""
-  gitcRe = re"""git\s+-C\s+["']?(/[^\s"';&|)]+)"""
-  pathRe = re"""(/[\w./-]+)"""
+type Desk* = object   ## the session hitl works on, with its directory and its project's config
+  id*: SessionId
+  transcript*: string
+  cwd*: string        ## the session's working directory
+  repo*: string       ## the repository there, else the same directory
+  config*: Config
 
-proc findAllGroup*(s: string; r: Regex): seq[string] =
-  ## Python's re.findall for a pattern with one group.
-  result = @[]
-  var start = 0
-  var caps: seq[Capture] = @[]
-  while start <= s.len:
-    let (a, b) = findBounds(s, r, caps, start)
-    if a < 0: break
-    result.add capture(s, caps, 0)
-    start = if b >= a: b + 1 else: a + 1
-
-proc cdTargets*(cmd: string): seq[string] = findAllGroup(cmd, cdRe)
-proc gitcTargets*(cmd: string): seq[string] = findAllGroup(cmd, gitcRe)
-
-proc workdirOf*(recs: seq[Rec]; prompt: string): Opt[string] =
-  ## The directory an agent worked in: the most named `cd`/`git -C` target that exists.
-  var count = initTable[string, int]()   # insertion-ordered, as Counter
-  for c in toolUses(recs):
-    if c.tool.name == "Bash":
-      for d in cdTargets(c.tool.input.command): count[d] = count.getOrDefault(d) + 1
-      for d in gitcTargets(c.tool.input.command): count[d] = count.getOrDefault(d) + 1
-  if count.len == 0:
-    for d in findAllGroup(prompt, pathRe): count[d] = count.getOrDefault(d) + 1
-  var order: seq[(string, int, int)] = @[]   # most_common: by count, then first seen
-  var k = 0
-  for d, n in count:
-    order.add (d, n, k)
-    inc k
-  order.sort(proc (a, b: (string, int, int)): int =
-    result = cmp(b[1], a[1])
-    if result == 0: result = cmp(a[2], b[2]))
-  for (d, _, _) in order:
-    let path = d.strip(leading = false, chars = {'/', '.'})
-    if path.len == 0: return none[string]()   # Path("").is_dir(): the empty, falsy workdir
-    if isDir(path): return some(path)
-  none[string]()
-
-type
-  Agent* = object
-    id*, path*, prompt*, description*, start*: string
-    recs*: seq[Rec]
-    workdir*: Opt[string]
-    # filled by review.sources
-    report*: string
-    top*: Opt[string]
-    endTime*: float
-  Meta = object
-    description: string
-
-proc readJson(dst: var Meta; p: var JsonParser; u: UnknownFieldPolicy) =
-  if p.kind != jkObject:
-    p.parseError()
-    return
-  for f in p.jsonFields:
-    if f == "description": str(dst.description, p)
-    else: p.skipJson()
-
-proc finalReport*(recs: seq[Rec]): string =
-  result = ""
-  for c in toolUses(recs):
-    if c.tool.name == "SubagentHandback": result = c.tool.input.message
-  if result.len > 0: return
-  for (_, t) in assistantTexts(recs): result = t
-
-proc agents*(sessionPath: string): seq[Agent] =
-  let base = sessionPath.substr(0, sessionPath.len - 7) & "/subagents"
-  result = @[]
-  var files: seq[string] = @[]
-  if isDir(base):
-    try:
-      for (k, fp) in walkDir(path(base)):
-        let p = $fp
-        let name = extractFilename(p)
-        if k in {pcFile, pcLinkToFile} and name.startsWith("agent-") and name.endsWith(".jsonl"):
-          files.add p
-    except: discard
-  files.sort()
-  for p in files:
-    let name = extractFilename(p)
-    let aid = name.substr(6, name.len - 7)
-    var meta = Meta()
-    let mt = readText(p.substr(0, p.len - 7) & ".meta.json")
-    if mt.isSome:
-      meta = fromJson(mt.get(""), Meta).get(Meta())
-    let recs = readJsonl(p)
-    var prompt = ""
-    if recs.len > 0 and recs[0].kind == rkUser:
-      case recs[0].content
-      of ckText: prompt = recs[0].text
-      of ckBlocks:
-        var parts: seq[string] = @[]
-        for b in recs[0].blocks: parts.add b.text   # PORTBUG(B4): every block's text, not only text blocks
-        prompt = parts.join(" ")
-      of ckNone: discard
-    let wd = workdirOf(recs, prompt)
-    result.add Agent(id: aid, path: p, recs: recs, prompt: prompt, description: meta.description,
-                     start: (if recs.len > 0: recs[0].timestamp else: ""), workdir: wd)
-  result.sort(proc (a, b: Agent): int = cmp(a.start, b.start))   # stable, as Python's sort
-proc decisionId*(question: string): string =
-  ## Stable id of a decision across brief rewrites with the same question.
-  var st = newSha1State()
-  st.update(collapse(question))
-  ($SecureHash(st.finalize())).toLowerAscii.substr(0, 9)
-
-# -------------------------------------------------------------------- browser
-
-proc openBrowser*(url: string) =
-  ## webbrowser.open(url): $BROWSER if set, else xdg-open; not waited for.
-  let b = getEnv("BROWSER").split(':')[0]
-  var argv: seq[string] = @[]
-  if b.len > 0:
-    if "%s" in b: argv = b.replace("%s", url).splitWhitespace
-    else:
-      argv = b.splitWhitespace
-      argv.add url
-  else: argv = @["xdg-open", url]
-  try: discard startProcess(argv[0], args = argv.toOpenArray(1, argv.high), options = {poUsePath, poParentStreams})
-  except: discard
+proc openDesk*(session, configFile: Opt[string]): Result[Desk, string] =
+  ## The session `session` names (see pickSession) and its project's config.
+  let picked = pickSession(session)
+  if picked.isNone:
+    return err[Desk, string](if session.isSome: "no session matches " & session.get("")
+                             else: "no Claude Code session found")
+  let s = picked.get(Session())
+  var cwd = ""
+  for r in jsonLines[Rec](readText(s.transcript).get("")):
+    if cwd.len == 0 and r.isOk: cwd = r.get(Rec()).cwd
+  if cwd.len == 0 or not dirExists(cwd):
+    return err[Desk, string]("cannot find the working directory of session " & s.id.short)
+  case readConfig(cwd, configFile)
+  of Ok(cfg):
+    result = ok[Desk, string](Desk(id: s.id, transcript: s.transcript, cwd: cwd,
+      repo: git(cwd, ["rev-parse", "--show-toplevel"]).get(cwd), config: cfg))
+  of Err(e): result = err[Desk, string](e)

@@ -3,8 +3,8 @@
 ### logistics: no PRs, branches, pushes or timelines. The design is frozen in
 ### DESIGN.md; change it there first. The pages share static/hitl.css and
 ### static/hitl.js, which review.build copies beside them.
-#import std/[strutils, opt, tables]
-#import core, store, model, html
+#import std/[strutils, opt]
+#import core, items, html
 #
 #proc svg*(paths: string; size = 16; stroke = "1.6"; cls = ""): string =
 #  ## An icon in the SF Symbols manner: a 20-unit grid, round caps, beside a word.
@@ -63,7 +63,7 @@ ${chatHtml()}<script src="config.js"></script><script src="hitl.js"></script></b
 #
 #proc qact(cfg: Config): string =
 #  result = ""
-#  let against = if cfg.spec.len > 0: "the spec and the evidence" else: "the evidence"
+#  let against = if cfg.spec.isSome: "the spec and the evidence" else: "the evidence"
 #  let explain = ExplainQ.replace("{users}", cfg.users)
 #  let grill = GrillQ.replace("{against}", against)
 <div class="qact" hidden><button type="button" class="tb explain" data-q="${esc(explain)}">Explain the options</button>
@@ -83,17 +83,16 @@ ${chatHtml()}<script src="config.js"></script><script src="hitl.js"></script></b
 </button>
 #end proc
 #
-#proc decisionHtml*(i: Decision; item: int; tip: string; cfg: Config; inputs: string): string =
+#proc decisionHtml*(i: Decision; item: ItemId; tip: string; cfg: Config; inputs: string): string =
 #  ## The question, then the options as an inset group ending in a field for your
 #  ## own answer (hitl.js: li.q[data-did], button.opt[data-opt], li.own, .qstate,
 #  ## .qact), then the spec line, the source and the two chat helpers.
 #  result = ""
 #  let k = i.recommended.get(-1)
 #  let marked = k >= 0 and k < i.options.len
-#  let did = decisionId(i.question)
-#  let itemText = if item > 0: $item else: ""
-#  let qid = "q" & itemText & "-" & did
-<li class="q" data-item="${itemText}" data-did="${did}" data-ref="${esc(tip)}" data-brief="${esc(inputs)}" data-question="${esc(i.question)}">
+#  let did = $decisionId(i.question)
+#  let qid = "q" & $item & "-" & did
+<li class="q" data-item="${item}" data-did="${did}" data-ref="${esc(tip)}" data-brief="${esc(inputs)}" data-question="${esc(i.question)}">
 <p class="text" id="${qid}">${inline(i.question)}</p><ul class="opts" role="radiogroup" aria-labelledby="${qid}">
 #  for n, o in i.options:
 <li role="none">${optButton(o, marked and n == k, (if marked and n == k: i.reason else: ""))}</li>
@@ -111,7 +110,7 @@ ${chatHtml()}<script src="config.js"></script><script src="hitl.js"></script></b
 ${source(i.source)}${qact(cfg)}</li>
 #end proc
 #
-#proc decisionsHtml*(ds: seq[Decision]; cfg: Config; item: int; tip, inputs: string): string =
+#proc decisionsHtml*(ds: seq[Decision]; cfg: Config; item: ItemId; tip, inputs: string): string =
 #  result = ""
 #  var noSpec = false
 #  if ds.len > 0:
@@ -124,7 +123,7 @@ ${decisionHtml(d, item, tip, cfg, inputs)}
 #    end for
 </ul>
 #  end if
-#  if cfg.spec.len > 0 and noSpec:
+#  if cfg.spec.isSome and noSpec:
 #    # one note instead of "The spec does not say" under every decision
 <p class="dnote">No Spec line means the spec says nothing on it.</p>
 #  end if
@@ -145,15 +144,15 @@ ${source(e.source)}</li>
 #  end if
 #end proc
 #
-#proc sectionHtml*(k, title: string; n: int; inner: string; label = ""): string =
+#proc sectionHtml*(id, title: string; n: int; inner: string; label = ""): string =
 #  ## A section in its fixed place, with every entry and its exact count; an
 #  ## empty one is just its heading, saying none.
 #  result = ""
 #  if n == 0:
-<section id="${k}" class="s z"><div class="sh"><h2>${title}</h2><span class="c">none</span></div></section>
+<section id="${id}" class="s z"><div class="sh"><h2>${title}</h2><span class="c">none</span></div></section>
 #  else:
 #    let count = if label.len > 0: label else: $n
-<section id="${k}" class="s"><div class="sh"><h2>${title}</h2><span class="c">${count}</span></div>${inner}</section>
+<section id="${id}" class="s"><div class="sh"><h2>${title}</h2><span class="c">${count}</span></div>${inner}</section>
 #  end if
 #end proc
 #
@@ -161,11 +160,12 @@ ${source(e.source)}</li>
 #  result = ""
 #  var old, new = 0
 #  for line in rows:
-#    var a, b, rest = ""
-#    if hunkHeader(line, a, b, rest):
-#      old = try: parseInt(a) except: 0
-#      new = try: parseInt(b) except: 0
-#      let label = if rest.strip.len > 0: esc(rest.strip) else: "&nbsp;"
+#    let h = hunk(line)
+#    if h.isSome:
+#      old = h.get(Hunk()).old
+#      new = h.get(Hunk()).new
+#      let title = h.get(Hunk()).title.strip
+#      let label = if title.len > 0: esc(title) else: "&nbsp;"
 <tr class="hunk"><td></td><td></td><td></td><td>${label}</td></tr>
 #    elif line.startsWith("+"):
 <tr class="add"><td></td><td>${new}</td><td class="sig">+</td><td>${esc(line.substr(1))}</td></tr>
@@ -183,11 +183,11 @@ ${source(e.source)}</li>
 #  end for
 #end proc
 #
-#proc renderDiff*(diff: string): string =
+#proc renderDiff*(files: seq[DiffFile]): string =
 #  ## One fold per file; every file starts closed.
 #  result = ""
 #  var first = true
-#  for f in diffFiles(diff):
+#  for f in files:
 #    if not first:
 #      result.add "\n"
 #    end if
@@ -198,76 +198,82 @@ ${source(e.source)}</li>
 #  end for
 #end proc
 #
-#proc itemBody(r: WorkItem; d: Collected; b: Opt[Cached]; nxt: int; nextTitle: string): string =
+#proc itemBody(items: seq[WorkItem]; at: int; desk: Desk; b: Opt[Cached]): string =
 #  result = ""
-#  let cfg = d.config
+#  let r = items[at]
+#  let cfg = desk.config
 #  let tip = r.code.tip
 <nav class="top" aria-label="Items"><a href="index.html">${svg(BackPath, 16, "2")}All items</a></nav>
-<header class="head"><div class="n">Item #${r.n}</div><h1>${inline(r.title)}</h1>
-#  if b.isSome:
-#    let c = b.get(Cached())
+<header class="head"><div class="n">Item #${r.id}</div><h1>${inline(r.title)}</h1>
+#  case b
+#  of Some(c):
 <p class="summary">${inline(c.brief.summary)}</p>
-#  else:
-<p class="summary nobrief">No brief yet. Run <code>hitl brief ${r.n}</code>.</p>
-#  end if
-#  if cfg.compare.isSome:
-#    let cmp = cfg.compare.get(Compare())
-<div class="hitl-acts"><button class="soft" type="button" data-ask="${esc(expand(cmp.prompt, state(skScratch, d.session)))}" hidden>
+#  of None:
+<p class="summary nobrief">No brief yet. Run <code>hitl brief ${r.id}</code>.</p>
+#  end case
+#  case cfg.compare
+#  of Some(cmp):
+<div class="hitl-acts"><button class="soft" type="button" data-ask="${esc(expand(cmp.prompt, stateDir(sdScratch, desk.id)))}" hidden>
 ${bubble()}${esc(cmp.label)}</button></div>
-#  end if
+#  of None:
+#    discard
+#  end case
 </header>
-#  if b.isSome:
-#    let c = b.get(Cached())
+#  case b
+#  of Some(c):
 #    for s in Section:
-#      let inner = if s == secOpenDecisions: decisionsHtml(c.brief.open_decisions, cfg, r.n, tip, c.inputs) else: entriesHtml(c.brief.entries(s))
+#      let inner = if s == secDecisions: decisionsHtml(c.brief.decisions, cfg, r.id, tip, c.inputs) else: entriesHtml(c.brief.entries[s])
 ${sectionHtml($s, SectionTitles[s], c.brief.count(s), inner)}
 #    end for
-#  end if
-#  let diff = if r.code.diff.len > 0: renderDiff(r.code.diff) else: ""
-#  if diff.len > 0:
-#    let files = diffFiles(r.code.diff).len   # one fold per file
-${sectionHtml("code", "The code", files, diff, plural(files, "file"))}
+#  of None:
+#    discard
+#  end case
+#  let files = diffFiles(r.code.diff)
+#  if files.len > 0:
+${sectionHtml("code", "The code", files.len, renderDiff(files), plural(files.len, "file"))}
 #  else:
 <section id="code" class="s z"><div class="sh"><h2>The code</h2></div><p class="nocode">No code changes.</p></section>
 #  end if
 <nav class="end" aria-label="Next item">
-#  if nxt > 0:
-#    let hint = "#" & $nxt & " " & nextTitle.replace("`", "") & " (Alt+Right)"
-<a href="i${nxt}.html" title="${esc(hint)}"><span class="et"><span class="k">Next item</span>
-<span class="t"><span class="no">#${nxt}</span>${inline(nextTitle)}</span></span>${svg(FwdPath, 16, "2")}</a>
+#  if at + 1 < items.len:
+#    let next = items[at + 1]
+#    let hint = "#" & $next.id & " " & next.title.replace("`", "") & " (Alt+Right)"
+<a href="i${next.id}.html" title="${esc(hint)}"><span class="et"><span class="k">Next item</span>
+<span class="t"><span class="no">#${next.id}</span>${inline(next.title)}</span></span>${svg(FwdPath, 16, "2")}</a>
 #  else:
 <a href="index.html"><span class="et"><span class="t">All items</span></span>${svg(FwdPath, 16, "2")}</a>
 #  end if
 </nav>
 #end proc
 #
-#proc itemPage*(r: WorkItem; d: Collected; b: Opt[Cached]; prev, nxt: int; nextTitle: string): string =
+#proc itemPage*(items: seq[WorkItem]; at: int; desk: Desk; b: Opt[Cached]): string =
 #  ## The same sections in the same order on every item page, in one column;
 #  ## only the code is wider. The top holds only the way out; the way on is the
 #  ## row at the end. Previous and next stay reachable by Alt+Left / Alt+Right
 #  ## through <link rel> in the head.
 #  var rels = ""
-#  if prev > 0:
-#    rels.add "<link rel=\"prev\" href=\"i" & $prev & ".html\">"
+#  if at > 0:
+#    rels.add "<link rel=\"prev\" href=\"i" & $items[at - 1].id & ".html\">"
 #  end if
-#  if nxt > 0:
-#    rels.add "<link rel=\"next\" href=\"i" & $nxt & ".html\">"
+#  if at + 1 < items.len:
+#    rels.add "<link rel=\"next\" href=\"i" & $items[at + 1].id & ".html\">"
 #  end if
-#  result = page("#" & $r.n & " " & r.title, itemBody(r, d, b, nxt, nextTitle), " class=\"item\"", $r.n, rels)
+#  let r = items[at]
+#  result = page("#" & $r.id & " " & r.title, itemBody(items, at, desk, b), " class=\"item\"", $r.id, rels)
 #end proc
 #
-#proc card*(n: int; title, sub: string): string =
+#proc card*(id: ItemId; title, status: string): string =
 #  ## One link per item: number, title, and only in the decision lane the exact
 #  ## number of decisions. Every card keeps the line's space, so all are one height.
 #  result = ""
-<li><a class="card" href="i${n}.html"><span class="no">#${n}</span>
-<span class="tt">${inline(title)}</span><span class="sub">${sub}</span></a></li>
+<li><a class="card" href="i${id}.html"><span class="no">#${id}</span>
+<span class="tt">${inline(title)}</span><span class="sub">${status}</span></a></li>
 #end proc
 #
-#proc indexBody(d: Collected; briefs: Table[int, Cached]; built: string): string =
+#proc indexBody(items: seq[WorkItem]; briefs: seq[Opt[Cached]]; built: string): string =
 #  result = ""
 <h1>Work items</h1>
-#  if d.items.len == 0:
+#  if items.len == 0:
 <p class="nocode">No work items yet. Run <code>hitl brief</code>.</p>
 #  end if
 <section id="hitl-decisions" hidden aria-labelledby="hitl-dh">
@@ -276,10 +282,10 @@ ${sectionHtml("code", "The code", files, diff, plural(files, "file"))}
 #  for lane in Lane:
 #    var cards = ""
 #    var count = 0
-#    for r in d.items:
-#      if laneOf(briefs, r.n) == lane:
+#    for i, r in items:
+#      if laneOf(briefs[i]) == lane:
 #        inc count
-#        cards.add card(r.n, r.title, cardSub(briefs, r.n, lane))
+#        cards.add card(r.id, r.title, cardStatus(briefs[i]))
 #      end if
 #    end for
 #    let z = if count > 0: "" else: " z"
@@ -294,8 +300,8 @@ ${sectionHtml("code", "The code", files, diff, plural(files, "file"))}
 <p class="built">${esc(built)}</p>
 #end proc
 #
-#proc indexPage*(d: Collected; briefs: Table[int, Cached]; built: string): string =
+#proc indexPage*(items: seq[WorkItem]; briefs: seq[Opt[Cached]]; built: string): string =
 #  ## Three lanes, always in the same order, grouping the items by what they
 #  ## need from you; item-number order inside each lane.
-#  result = page("Work items", indexBody(d, briefs, built), " class=\"wide\"")
+#  result = page("Work items", indexBody(items, briefs, built), " class=\"wide\"")
 #end proc

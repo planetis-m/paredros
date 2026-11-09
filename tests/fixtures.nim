@@ -5,10 +5,12 @@
 ## directory; the environment points hitl's state, Claude Code's config and the
 ## browser away from the real ones before anything runs.
 
-import std/[syncio, strutils, os, paths, dirs, tempfiles, envvars, result]
+import std/[syncio, strutils, os, paths, dirs, tempfiles, envvars, opt, result]
 import std/files except fileExists
 import kroki
 import ../hitl/core
+
+export syncio, opt, result
 
 const
   Sid* = "11111111-2222-3333-4444-555555555555"   ## a coordinator with a fixer and a reviewer
@@ -17,16 +19,11 @@ const
 proc q*(s: string): string = toJson(s).get("\"\"")
   ## A JSON string literal.
 
-proc fail*(msg: string) {.noreturn.} =
-  stderr.write "FAILED: " & msg & "\n"
-  quit(1)
-
-proc check*(cond: bool; label: string) =
-  if not cond: fail(label)
-
 proc writeText*(path, text: string) =
-  ensureDir(parentDir(path))
-  try: writeFile(path, text) except: fail("cannot write " & path)
+  try:
+    createDir(paths.path(parentDir(path)))
+    writeFile(path, text)
+  except: quit "cannot write " & path
 
 proc sh*(cwd: string; args: openArray[string]; date = "2026-11-09T08:05:00Z"): string =
   ## A git (or other) command with fixed author and committer dates.
@@ -34,7 +31,7 @@ proc sh*(cwd: string; args: openArray[string]; date = "2026-11-09T08:05:00Z"): s
                "GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@t", "GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@t"]
   for a in args: argv.add a
   let r = run(Job(argv: argv, cwd: cwd, timeoutMs: 30_000))
-  if r.code != 0: fail(args.join(" ") & ": " & r.errors)
+  if r.code != 0: quit args.join(" ") & ": " & r.errors
   r.output.strip
 
 proc user*(text, ts: string; cwd = ""): string =
@@ -69,7 +66,7 @@ proc setUp*() =
   ## Makes the fixtures in a fresh temp directory and points the environment at it.
   var root = ""
   try: root = $createTempDir("hitl-test-", "")
-  except: fail("no temp dir")
+  except: quit "no temp dir"
   {.cast(assumeSync).}: tmpRoot = root
   try:
     putEnv("CLAUDE_CONFIG_DIR", root & "/claude")
@@ -79,10 +76,10 @@ proc setUp*() =
     putEnv("PATH", here & "/nimcache/tests/bin:" & getEnv("PATH"))   # the fake claude
     putEnv("FAKE_LOG", root & "/calls")
     putEnv("FAKE_PLAN", root & "/plan.json")
-  except: fail("cannot set the environment")
+  except: quit "cannot set the environment"
   # a coordinator: a fixer commits in its own worktree, a reviewer reads it
   let repo = root & "/proj/repo"
-  ensureDir(repo)
+  try: createDir(paths.path(repo)) except: quit "no " & repo
   discard sh(repo, ["git", "init", "-q", "-b", "master"], "2026-11-01T08:00:00Z")
   discard sh(repo, ["git", "commit", "-q", "--allow-empty", "-m", "base"], "2026-11-01T08:00:00Z")
   let wt = root & "/wt/f7/repo"
@@ -113,7 +110,7 @@ proc setUp*() =
 
   # one agent, no subagents: two fixes committed in its own checkout, the first amended
   let solo = root & "/solo/app"
-  ensureDir(solo)
+  try: createDir(paths.path(solo)) except: quit "no " & solo
   discard sh(solo, ["git", "init", "-q", "-b", "main"], "2026-11-01T08:00:00Z")
   discard sh(solo, ["git", "commit", "-q", "--allow-empty", "-m", "base"], "2026-11-01T08:00:00Z")
   writeText(solo & "/parse.py", "x = 1\n")
@@ -140,6 +137,14 @@ proc setUp*() =
 proc tearDown*() =
   try: removeDir(path(tmp())) except: discard
 
+proc deskOf*(sid: string; config = none[string]()): Desk =
+  ## The fixture session as hitl opens it, with an optional config file.
+  case openDesk(some(sid.substr(0, 7)), config)
+  of Ok(d): result = d
+  of Err(e): quit "no desk for " & sid & ": " & e
+
+proc readOr*(path: string): string = (try: readFile(path) except: "")
+
 proc hitlBin*(): string = (try: os.getCurrentDir() except: ".") & "/bin/hitl"
 
 proc cli*(args: openArray[string]; session = Sid): Ran =
@@ -160,11 +165,8 @@ proc fakeModel*(plan: string) =
 proc calls*(): seq[string] =
   ## The prompts the fake claude got, in order.
   result = @[]
-  var n = 0
-  while fileExists(tmp() & "/calls/call-" & $n & ".prompt"):
-    result.add (try: readFile(tmp() & "/calls/call-" & $n & ".prompt") except: "")
-    inc n
+  while fileExists(tmp() & "/calls/call-" & $result.len & ".prompt"):
+    result.add readOr(tmp() & "/calls/call-" & $result.len & ".prompt")
 
 proc callArgv*(n: int): seq[string] =
-  let t = try: readFile(tmp() & "/calls/call-" & $n & ".argv") except: "[]"
-  fromJson(t, seq[string]).get(@[])
+  fromJson(readOr(tmp() & "/calls/call-" & $n & ".argv"), seq[string]).get(@[])

@@ -5,36 +5,32 @@
 ## repositories and worktrees the session works in. Agents never load hitl and do
 ## no extra reporting. Control stays with the session.
 
-import std/[syncio, strutils, opt, tables, smartcli]
-import hitl/[core, store, review, briefs]
+import std/[syncio, strutils, opt, result, smartcli]
+import hitl/[core, items, briefs]
 
-type Options = object   ## the parsed command line, as the commands use it
-  session, config: string
+proc optional(value: string): Opt[string] =
+  ## An option's value; smartcli gives "" for an option left out.
+  if value.len > 0: some(value) else: none[string]()
 
-proc intOption(name, value: string; default: int): int =
-  ## An integer option as argparse's type=int reads it.
-  if value.len == 0: return default
-  result = try: parseInt(value.strip) except: die("hitl: invalid value for " & name & ": " & value)
+proc number(option, value: string; default: int): int =
+  ## An integer option; any other value ends hitl.
+  if value.len == 0: default
+  else: (try: parseInt(value) except: quit "hitl: invalid value for " & option & ": " & value)
 
-# ------------------------------------------------------------------- commands
-
-proc cmdBrief(o: Options; items: seq[string]; model: string; force: bool; jobs: int) =
-  var numbers: seq[int] = @[]
-  for x in items: numbers.add intOption("N", x, 0)
-  let s = pickSession(o.session)
-  var d = collect(s.path, o.config, withDiff = false)
-  var before: seq[int] = @[]
-  for it in loadLedger(d.session).items: before.add it.id
-  let led = split(d, model)
-  for it in led.items:
-    if it.id notin before: echo "#", it.id, ": new item: ", it.title
-  d = collect(s.path, o.config)
-  for r in generateAll(d, numbers, model, force, jobs):
-    echo "#", r.n, ": ", (if r.state == bsFailed: "failed: " & r.error else: $r.state)
-
-proc notYet(what: string) = die("hitl: " & what & " is not ported yet")
-
-# ------------------------------------------------------------------------ main
+proc brief(desk: Desk; only: seq[ItemId]; model: string; force: bool; jobs: int) {.raises.} =
+  ## Sorts new material into work items, then writes the briefs whose inputs changed.
+  let src = sources(desk.transcript)
+  var known: seq[ItemId] = @[]
+  for it in loadLedger(desk.id).items: known.add it.id
+  case split(desk, src, model)
+  of Ok(ledger):
+    for it in ledger.items:
+      if it.id notin known: echo "#", $it.id, ": new item: ", it.title
+  of Err(e): quit "hitl: " & e
+  for r in generate(desk, workItems(desk, src), only, model, force, jobs):
+    case r.state
+    of bsFailed: echo "#", $r.item, ": failed: ", r.error
+    of bsWritten, bsUnchanged: echo "#", $r.item, ": ", r.state
 
 proc main() =
   let cli = cliapp("""hitl
@@ -54,11 +50,17 @@ Options:
   --jobs=N          brief: parallel brief runs (default 4)
   --port=N          serve: the port (default 8765)
   -h, --help        show this help and exit""")
-  let o = Options(session: cli.session, config: cli.config)
+  var desk = Desk()
+  case openDesk(optional(cli.session), optional(cli.config))
+  of Ok(d): desk = d
+  of Err(e): quit "hitl: " & e
   case cli.command
-  of cmdBrief: cmdBrief(o, cli.item, (if cli.model.len > 0: cli.model else: "opus"), cli.force,
-                        intOption("--jobs", cli.jobs, 4))
-  of cmdServe: notYet("serve")
+  of cmdBrief:
+    var only: seq[ItemId] = @[]
+    for x in cli.item: only.add ItemId(number("ITEM", x, 0))
+    try: brief(desk, only, optional(cli.model).get("opus"), cli.force, number("--jobs", cli.jobs, 4))
+    except ErrorCode as e: quit "hitl: cannot write the briefs: " & $e
+  of cmdServe: quit "hitl: serve is not ported yet"
   of cmdNone: discard   # cliapp has already refused a command line without one
 
 main()
