@@ -124,6 +124,7 @@ proc modelJob*(prompt, cwd, model, schema: string): Job =
 
 proc answer*[T](r: Ran): Result[T, string] {.untyped.} =
   ## The answer of a model run in its schema, else why there is none.
+  # Known issue: bug-reports/103-case-on-result-in-generic-proc: isOk, not `case`.
   if not r.started: return err[T, string](r.errors)
   if r.code != 0:
     return err[T, string]("claude exited " & $r.code & ": " & r.errors.strip.firstRunes(300))

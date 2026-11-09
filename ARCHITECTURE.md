@@ -61,12 +61,13 @@ they call each other's functions.
 |---|---|
 | `hitl.nim` | Entry point and CLI (`brief`, `serve`). |
 | `hitl/core.nim` | The only adapter to Claude Code's transcript format and to git (`git()` is the one git runner). Config loading. State paths. The process runner. |
+| `hitl/items.nim` | Turns transcripts + git into sources (turns, agents, commits) and work items with their current code (`workItems`). Owns the ledger and brief files and their types. Does no model calls. |
+| `hitl/briefs.nim` | Model work that can be precomputed: the split (sources into ledger items) and one brief per item, both cached; the two prompts and schemas. |
 | `hitl/companion.nim` | The companion's arguments and permission profile; the companion conversation the server runs. |
 | `hitl/drafts.nim` | Drafts: write, read, withdraw, re-check, delivery detection. |
-| `hitl/review.nim` | Turns transcripts + git into sources (turns, agents, commits) and work items with their current code (`collect`). Renders the pages from items and briefs (`build`). Does no model calls and writes only the output directory. |
-| `hitl/briefs.nim` | Model work that can be precomputed: the split (sources into ledger items) and one brief per item, both cached. Owns the ledger and brief files. |
+| `hitl/review.nim` | Renders the pages from items and briefs (`build`). Writes only the output directory. |
 | `hitl/serve.nim` | The local server: serves the built pages, the token, and five POST actions that call `hitl` functions; runs the one companion conversation per run. No logic of its own beyond routing and the security checks. |
-| `hitl/html.nim`, `hitl/pages.nim` | Escaping and the markdown subset; the page templates (a stdtmpl source filter). |
+| `hitl/html.nim`, `hitl/pages.nim` | Escaping, the markdown subset, lanes and diff parsing; the page templates (a stdtmpl source filter). |
 | `companion.md` | The companion's system prompt (a template filled by `companion.companionSetup`). |
 | `DESIGN.md` | The page design spec. |
 | `static/hitl.css`, `static/hitl.js` | The pages' CSS and JS, one file each, copied beside the pages by `build`. |
@@ -84,7 +85,7 @@ Data flow:
                 hitl/core   transcript + git adapters, config
                    |
                    v
-                review.collect   sources -> items (ledger) -> current code
+                items.workItems  sources -> items (ledger) -> current code
                    |        ^
                    v        |  items.json, i<N>.json
                 briefs    split (claude -p) | brief per item (claude -p, Read/Grep/Glob)

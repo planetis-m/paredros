@@ -76,6 +76,7 @@ proc writeJson*(w: var JsonWriter; t: Table[SourceKey, int]) =
   w.write "}"
 
 proc saveJson[T](path: string; value: T) {.raises, untyped.} =
+  # Known issue: bug-reports/103-case-on-result-in-generic-proc: isOk, not `case`.
   let json = toJson(value)
   if json.isErr: raise ValueError
   writeAtomic(path, json.get(""))
