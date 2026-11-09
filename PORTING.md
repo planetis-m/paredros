@@ -27,6 +27,15 @@ scratch/build.sh <name> <file>.nim [flags]     # the same, for the proofs
 
 `nimony.paths` puts `deps/kroki/src` and `deps/hashi/src` on the search path.
 
+`--stdcache` is not forwarded to sub-compiles (`src/nimony/cli.nim:159-165`):
+a `const` evaluated at compile time (seen with `staticRead`) builds into
+`~/Projects/nimony/stdcache/bin/<key>/` anyway. Plugin builds (smartcli, rex
+`re`, parfor `||`) probably do the same on their first build; not confirmed.
+The port avoids const evaluation where it can. The first proofs of this
+checkpoint, built before `--stdcache` was used, and these sub-compiles wrote
+about 2,500 files into `~/Projects/nimony/stdcache/bin/{7w79i41, 8biiry1,
+bd49uj1, gld97k1, ip9feq, s8gfd7}`; they were left in place.
+
 ## 2. Module map
 
 Python's modules import each other in a cycle (`review` and `brief` import
@@ -47,7 +56,9 @@ hitl/pages.nim      the pages, as a stdtmpl source filter        <- review.py pa
 hitl/drafts.nim     decide, withdraw, re-check, delivery         <- hitl.py directions part
 hitl/companion.nim  profile, prompt, terminal and served runs    <- hitl.py companion part, serve.Companion
 hitl/serve.nim      hashi server, routing, the security checks   <- serve.py
-static/hitl.css, static/hitl.js, companion.md                    copied verbatim; embedded with staticRead
+static/hitl.css, static/hitl.js, companion.md                    copied verbatim; read at run time from the
+                                                                 directory above the binary, as Python reads them
+                                                                 beside its source
 examples/nimony.hitl.json                                        copied verbatim
 tests/                                                           <- test_hitl.py (section 8)
 ```
@@ -99,7 +110,7 @@ separate library review is done. Each one is backed by a program in
 | Parallel briefs | osproc `runAll(jobs, parallel)` | 6 fake `claude` runs of 1 s, 4 at a time: 2.0 s, results in job order | std/parfor (`scratch/parbriefs.nim`) also works (1.0 s) but runs all 6 at once: it sizes by the pool, so `--jobs 4` is not honoured; each chunk would also block a pool worker in `waitpid` |
 | Hashes, token | std/crypto/sha2, std/sha1, std/crypto/sysrand, std/base64 | `scratch/ids.nim`: brief `inputs` and decision ids equal Python's; token is 32 url-safe chars like `secrets.token_urlsafe(24)` | `sha1`'s `$` is upper case: lower it |
 | Paths, env, files, time | std/paths, dirs, files, envvars, tempfiles, times | used in the proofs | std/times has no `format`/`parse` and `now()` is UTC: build `YYYY-MM-DD HH:MM` from `local(getTime())` by hand (Python's `strftime` is local time) |
-| Embedded files | `staticRead` | `scratch` check: works with an absolute path | a relative path fails with no message (bug 107): pass the source directory with `-d:hitlDir=...` |
+| Static files | read at run time beside the binary | as Python does | `staticRead` was tried: a relative path fails with no message (bug 107), and its const-eval sub-compile writes into `~/Projects/nimony/stdcache` even with `--stdcache` (section 1), so it is not used |
 
 ## 4. Proofs in detail
 
@@ -338,7 +349,7 @@ same inputs and diffs what they print and write.
 | `bug-reports/103-case-on-result-in-generic-proc` | `case r of Ok(v)` on a `Result` fails inside a generic proc | `isOk`/`get`/`error` in generic code |
 | `bug-reports/105-osproc-pipes-inherited-by-later-children` | filed by the parallel library review; found here too (6 runs took 4 s instead of 2) | close-on-exec on the parent's ends after `startProcess` |
 | `bug-reports/106-rex-word-boundary-after-repetition` | `\b` right after a repetition never matches | hand scan for `GIT_WRITE` |
-| `bug-reports/107-staticread-relative-path-fails-silently` | `staticRead("x")` in a `const` fails with no message | absolute path from `-d:hitlDir` |
+| `bug-reports/107-staticread-relative-path-fails-silently` | `staticRead("x")` in a `const` fails with no message | not needed: static files are read at run time |
 
 Not bugs: `addr s[i]` is refused on strings (SSO; `readRawData` and
 `beginStore` instead), and nested type sections cannot sit in a stdtmpl file
