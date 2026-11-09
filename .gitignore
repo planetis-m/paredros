@@ -1,0 +1,6 @@
+deps/
+nimcache/
+bin/
+scratch/
+.claude/skills/
+.pi/skills/
