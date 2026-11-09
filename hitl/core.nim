@@ -79,11 +79,11 @@ type
     started*: bool         ## false when the program could not be started
     code*: int             ## the exit code
     output*, errors*: string
-  Running = object
+  Running* = object   ## a started job
     job: Job
     process: Opt[Process]
 
-proc launch(job: Job): Running =
+proc start*(job: Job): Running =
   ## Starts the job and hands it its whole input.
   # Known issue: bug-reports/105-osproc-pipes-inherited-by-later-children. Each
   # child gets its input and the end of it before the next one starts.
@@ -96,7 +96,14 @@ proc launch(job: Job): Running =
     p.inputStream.close()
   except: discard
 
-proc wait(r: Running): Ran =
+proc outputFd*(r: Running): Opt[FileHandle] =
+  ## The pipe the job writes its output to, for a caller that waits until it
+  ## is readable before finishing the job.
+  case r.process
+  of Some(p): result = some(p.outputHandle)
+  of None: result = none[FileHandle]()
+
+proc finish*(r: Running): Ran =
   ## Reads what the job wrote and waits for it to end.
   # Known issue: osproc has no `communicate`, so stdout is read to its end
   # before stderr; a child that fills the stderr pipe first would wait for us.
@@ -113,7 +120,7 @@ proc wait(r: Running): Ran =
       p.close()
     except: discard
 
-proc run*(job: Job): Ran = wait(launch(job))
+proc run*(job: Job): Ran = finish(start(job))
 
 proc runAll*(jobs: seq[Job]; parallel: int): seq[Ran] =
   ## Runs every job, at most `parallel` at once; the results in job order.
@@ -121,10 +128,10 @@ proc runAll*(jobs: seq[Job]; parallel: int): seq[Ran] =
   var running: seq[Running] = @[]
   for job in jobs:
     if running.len - result.len >= max(parallel, 1):
-      result.add wait(running[result.len])
-    running.add launch(job)
+      result.add finish(running[result.len])
+    running.add start(job)
   while result.len < running.len:
-    result.add wait(running[result.len])
+    result.add finish(running[result.len])
 
 proc git*(dir: string; args: openArray[string]; timeoutMs = 20_000): Opt[string] =
   ## Read-only git: never takes the index lock. None when git fails.
@@ -377,6 +384,8 @@ proc pickSession(spec: Opt[string]): Opt[Session] =
   let here = projectName(try: os.getCurrentDir() except: "")
   result = none[Session]()
   for s in all:
+    # Known issue: bug-reports/case-expression-opt-binding-must-be-discarded - a
+    # `case spec of Some(x): ... of None: ...` expression does not compile.
     let x = spec.get("")
     if (spec.isSome and (string(s.id).startsWith(x) or x in s.project)) or
         (spec.isNone and s.project == here):

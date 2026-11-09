@@ -6,7 +6,7 @@
 ## no extra reporting. Control stays with the session.
 
 import std/[syncio, strutils, opt, result, smartcli]
-import hitl/[core, items, briefs]
+import hitl/[core, items, briefs, serve]
 
 proc optional(value: string): Opt[string] =
   ## An option's value; smartcli gives "" for an option left out.
@@ -60,7 +60,9 @@ Options:
     for x in cli.item: only.add ItemId(number("ITEM", x, 0))
     try: brief(desk, only, optional(cli.model).get("opus"), cli.force, number("--jobs", cli.jobs, 4))
     except ErrorCode as e: quit "hitl: cannot write the briefs: " & $e
-  of cmdServe: quit "hitl: serve is not ported yet"
+  of cmdServe:
+    try: serve(desk, number("--port", cli.port, 8765), optional(cli.model))
+    except ErrorCode as e: quit "hitl: cannot serve: " & $e
   of cmdNone: discard   # cliapp has already refused a command line without one
 
 main()

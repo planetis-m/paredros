@@ -5,7 +5,8 @@
 ## - else the split prompt gets items as `split` says: each entry names a new
 ##   item's title (or an existing item's `id`) and the handles to put in it,
 ##   `"C*"` meaning every commit; `housekeeping` handles are left out;
-## - any other prompt gets `brief` as its answer (default `{"summary": "s"}`).
+## - any other prompt gets `brief` as its answer (default `{"summary": "s"}`),
+##   with the session id `fork-<call number>`, after `sleepMs` milliseconds.
 
 import std/[syncio, strutils, os, paths, dirs, envvars, opt, result]
 import kroki
@@ -20,6 +21,7 @@ type
     split: seq[PlanItem]
     housekeeping: seq[string]
     brief: RawJson
+    sleepMs: int
   Item = object
     id: int
     title: string
@@ -38,8 +40,8 @@ proc main() =
   var argv: seq[string] = @[]
   for i in 1 .. paramCount(): argv.add paramStr(i)
   let log = getEnv("FAKE_LOG")
+  var n = 0
   if log.len > 0:
-    var n = 0
     try:
       createDir(path(log))
       while fileExists(log & "/call-" & $n & ".prompt"): inc n
@@ -69,6 +71,7 @@ proc main() =
     stdout.write toJson(SplitOut(result: "ok", structured_output: answer)).get("{}") & "\n"
   else:
     let b = if string(plan.brief).len > 0: string(plan.brief) else: "{\"summary\": \"s\"}"
-    stdout.write "{\"result\": \"ok\", \"structured_output\": " & b & "}\n"
+    if plan.sleepMs > 0: sleep(plan.sleepMs)
+    stdout.write "{\"result\": \"ok\", \"session_id\": \"fork-" & $n & "\", \"structured_output\": " & b & "}\n"
 
 main()

@@ -7,6 +7,8 @@ import std/[syncio, strutils, os, dirs, files, paths, opt, result, times]
 import kroki
 import core, items, html, pages
 
+# Known issue: bug-reports/enum-from-one-invalid-array-index-type - std/times'
+# Month starts at 1, and `array[Month, string]` is refused; indexed by ordinal.
 const MonthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
 proc freshness(repo: string; built: DateTime): string =

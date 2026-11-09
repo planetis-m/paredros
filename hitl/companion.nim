@@ -88,10 +88,10 @@ proc readJson(dst: var ChatReply; p: var JsonParser; u: UnknownFieldPolicy) =
 proc initCompanion*(desk: Desk; model: Opt[string]): Companion =
   Companion(desk: desk, model: model, fork: none[SessionId]())
 
-proc ask*(c: var Companion; prompt: string): Result[string, string] {.raises.} =
-  ## The companion's answer, in markdown, or why there is none. The first
-  ## question forks the session in its own directory (a session is resumed
-  ## from there); later ones continue the fork.
+proc askJob*(c: Companion; prompt: string): Job {.raises.} =
+  ## The `claude -p` run that answers the prompt. The first question forks the
+  ## session in its own directory (a session is resumed from there); later
+  ## ones continue the fork.
   var argv = @["claude", "-p", "--output-format", "json", "--resume"]
   case c.fork
   of Some(fork): argv.add $fork
@@ -101,7 +101,11 @@ proc ask*(c: var Companion; prompt: string): Result[string, string] {.raises.} =
   if c.model.isSome:
     argv.add "--model"
     argv.add c.model.get("")
-  let r = run(Job(argv: argv, cwd: c.desk.cwd, input: prompt, timeoutMs: AskTimeoutMs))
+  Job(argv: argv, cwd: c.desk.cwd, input: prompt, timeoutMs: AskTimeoutMs)
+
+proc answer*(c: var Companion; r: Ran): Result[string, string] =
+  ## The companion's answer from its run, in markdown, or why there is none;
+  ## the fork it made is kept for the next question.
   if not r.started: return err[string, string](r.errors)
   if r.code != 0:
     let why = r.errors.strip.lastRunes(400)
