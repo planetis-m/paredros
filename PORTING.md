@@ -1,6 +1,7 @@
 # Porting hitl to Nimony
 
-Status: **plan (checkpoint 1)**. Nothing is ported yet.
+Status: **milestone 2 done** (core, `status`, `show`). Stopped at milestone 3
+on bug 106 (section 12).
 
 - Source: `~/Projects/hitl`, branch `general`, `cf055de`. Python 3.15, stdlib
   only. `ARCHITECTURE.md` and `DESIGN.md` there are locked and govern this port.
@@ -12,29 +13,24 @@ Status: **plan (checkpoint 1)**. Nothing is ported yet.
 The port keeps the observable behaviour: the CLI's commands, arguments and
 output, every file written (paths, JSON shapes), the HTML pages, and the
 server's endpoints, checks and replies. Known weak spots are ported as they
-are (section 9). Where the port seems to need a spec change, it stops and asks
-(section 11).
+are (section 9). Where the port seems to need a spec change, it stops and asks.
+Decisions made since the plan are in section 11.
 
 ## 1. Build
 
-Every build keeps the stdlib cache in this repo. Without `--stdcache` nimony
-writes it into `~/Projects/nimony/stdcache/`, the user's checkout:
-
 ```sh
-nimony c --stdcache:$PWD/nimcache/stdcache --nimcache:nimcache/<name> -o:$PWD/nimcache/<name>/<name> <file>.nim
-scratch/build.sh <name> <file>.nim [flags]     # the same, for the proofs
+./build.sh --toolchain                 # once: a copy of ~/Projects/nimony's bin, lib, src, doc
+./build.sh                             # bin/hitl
+./build.sh FILE.nim OUT [-- flags]     # any other program
+tests/run [NAME...]                    # the tests, debug and release
 ```
 
-`nimony.paths` puts `deps/kroki/src` and `deps/hashi/src` on the search path.
-
-`--stdcache` is not forwarded to sub-compiles (`src/nimony/cli.nim:159-165`):
-a `const` evaluated at compile time (seen with `staticRead`) builds into
-`~/Projects/nimony/stdcache/bin/<key>/` anyway. Plugin builds (smartcli, rex
-`re`, parfor `||`) probably do the same on their first build; not confirmed.
-The port avoids const evaluation where it can. The first proofs of this
-checkpoint, built before `--stdcache` was used, and these sub-compiles wrote
-about 2,500 files into `~/Projects/nimony/stdcache/bin/{7w79i41, 8biiry1,
-bd49uj1, gld97k1, ip9feq, s8gfd7}`; they were left in place.
+`build.sh` compiles with the toolchain copy in `nimcache/toolchain/`, with
+`--stdcache` in that copy. Plugins (smartcli, rex `re`) and compile-time
+`const`s build their stdlib in `<toolchain>/stdcache` whatever `--stdcache`
+says (bug 108), so with the user's checkout every build would write into
+`~/Projects/nimony/stdcache`. `nimony.paths` puts `deps/kroki/src` on the
+search path.
 
 ## 2. Module map
 
@@ -55,7 +51,7 @@ hitl/html.nim       esc, inline, markdown, template glue         <- review.py ma
 hitl/pages.nim      the pages, as a stdtmpl source filter        <- review.py page builders, CHAT_HTML
 hitl/drafts.nim     decide, withdraw, re-check, delivery         <- hitl.py directions part
 hitl/companion.nim  profile, prompt, terminal and served runs    <- hitl.py companion part, serve.Companion
-hitl/serve.nim      hashi server, routing, the security checks   <- serve.py
+hitl/serve.nim      std/httpserver, routing, the security checks <- serve.py
 static/hitl.css, static/hitl.js, companion.md                    copied verbatim; read at run time from the
                                                                  directory above the binary, as Python reads them
                                                                  beside its source
@@ -90,24 +86,24 @@ templates. Proc names are the Python names in camelCase.
 | `brief.SECTIONS`, `SPLIT`, `PROMPT`, `entries`, `SPLIT_SCHEMA`, `BRIEF_SCHEMA`, `prompt_for` | `briefs.Section` enum with titles; prompts as `const` strings; the two schemas as the exact JSON text `json.dumps` produces (byte-equal argv) |
 | `ask_model`, `write_json`, `ledger_path`, `load_ledger`, `fingerprint`, `split` | `briefs.askModel`, `writeJson`, `ledgerPath`, `loadLedger`, `fingerprint`, `split` |
 | `gather`, `cache_path`, `load`, `parse`, `generate`, `generate_all` | `briefs.*`; `generateAll` runs at most `--jobs` `claude` children at once through `core.runAll` |
-| `serve.ASK`, `Companion`, `server`, `run` | `serve.nim`: hashi routes and a before-middleware; the companion's fork id and lock in a `Guarded` value |
+| `serve.ASK`, `Companion`, `server`, `run` | `serve.nim`: std/httpserver with a context object for the server's state; `claude` runs on its own thread |
 
-## 3. Library choices (provisional)
+## 3. Library choices
 
-**All third-party and pattern choices below are provisional** until the
-separate library review is done. Each one is backed by a program in
-`scratch/` (gitignored) that compiles and runs on hitl-shaped input.
+Settled (section 11). Each one is backed by a program in `scratch/`
+(gitignored) that compiles and runs on hitl-shaped input; the library review
+of kroki and std/httpserver against the alternatives is in its own report.
 
 | Need | Choice | Program and evidence | Limits found |
 |---|---|---|---|
 | CLI | std/smartcli `cliapp` | `scratch/cli.nim`: the spec in section 5 parses every command | option values only with `=`/`:`; no default command (section 5) |
-| JSON, transcripts | kroki `jsonLines` + custom `readJson` | `scratch/transcript.nim` vs `transcript.py` on the real 10 MB transcript of session 26c3c765: 4,658 records, 0 bad, 572 user, 71 human, 366 tool uses, 236,363 text code points, identical to Python; 37 ms vs 64 ms | none; a reader per record type (about 50 lines) reads mismatched field types as absent, as Python's `.get` does |
-| JSON, state and model output | kroki | `scratch/state.nim`: ledger round trip keeps `seen` in insertion order (Nimony's `Table` is ordered); brief entries kept as `RawJson` so the cache keeps exactly the model's keys, read through a typed view with `Opt[int]` for an absent `recommended`; `structured_output` as `Opt[RawJson]`; POST `item` as number or numeric string; config with unknown keys refused | the unknown-key error names a byte, not the key: the config reader names it itself; kroki writes compact JSON, Python `indent=1` and `ensure_ascii` (section 7) |
-| HTTP server | hashi | `scratch/server.nim` + `server_test.sh`: listens on `127.0.0.1` only, port 0 reported by `onBound`; Host check 421 (also without a port), token and Origin 403, built files 200/404, `/../` refused 400, JSON POST parsed and answered, bad JSON 500 with a message | logs 4xx/5xx to stderr by default (silenced with a no-op `setLogCallback`); `stopServe` is once per process (server tests get their own process) |
+| JSON, transcripts | kroki `jsonLines` + `readJson` overloads on the final types | `scratch/transcript.nim` vs `transcript.py` on the real 10 MB transcript of session 26c3c765: 4,658 records, 0 bad, 572 user, 71 human, 366 tool uses, 236,363 text code points, identical to Python; 37 ms vs 64 ms | none; the `readJson` of each final type reads the variant `message.content` and treats a field of another JSON type as absent, as Python's `.get` does |
+| JSON, state and model output | kroki, decoding straight into the final types | `scratch/state.nim`: ledger round trip keeps `seen` in insertion order (Nimony's `Table` is ordered); `Opt[int]` for an absent `recommended`; POST `item` as number or numeric string; config with unknown keys refused | kroki's errors name a byte offset, not a key, and are kept as they are; kroki writes compact JSON, Python `indent=1` and `ensure_ascii` (section 7) |
+| HTTP server | std/httpserver (`listenHttp`), state in a context object | the library review's `srv_std.nim` (hashi was proved too, `scratch/server.nim`, and set aside by the user for std's typed API) | `listenHttp` binds every interface and asserts on a busy port: known issues, section 12 |
 | HTML pages | stdtmpl source filter | `scratch/indexpage.nim` + `tmpl.nim`: the index of 10 items built from the real briefs is **byte-identical** to Python's (5,375 bytes) | every data line ends in `\n`; the glue in `scratch/html.nim` drops it from literals only (4.3); type sections cannot live in a filter file |
-| Patterns | std/rex for deterministic ones, strutils scanners for the rest | `scratch/rex_corpus.nim` vs `rex_corpus.py` on 3,051 real Bash commands: `CD_RE` and `GITC_RE` findall identical; `GIT_WRITE` identical with a hand scan | `\b` after a repetition never matches (bug 106); lookaround, lazy repeats and `$1` replacement are not in rex |
-| Processes | std/osproc + one `poll` loop | `scratch/procs.nim`: argv without a shell, cwd, 3 MB through stdin and stdout without deadlock, stderr apart, exit codes, a 500 ms timeout kills `sleep 10`, a missing program gives 127 | parent pipe ends leak into later children (bug 105): set close-on-exec after each start; no `poll` in std/posix (declared with `importc`) |
-| Parallel briefs | osproc `runAll(jobs, parallel)` | 6 fake `claude` runs of 1 s, 4 at a time: 2.0 s, results in job order | std/parfor (`scratch/parbriefs.nim`) also works (1.0 s) but runs all 6 at once: it sizes by the pool, so `--jobs 4` is not honoured; each chunk would also block a pool worker in `waitpid` |
+| Patterns | std/rex; strutils scanners where Python's pattern uses lookaround or lazy repeats, which rex does not have | `scratch/rex_corpus.nim` vs `rex_corpus.py` on 3,051 real Bash commands: `CD_RE` and `GITC_RE` findall identical; `GIT_WRITE` never matches (bug 106, section 12) | lookaround, lazy repeats and `$1` replacement are not in rex |
+| Processes | std/osproc, used plainly: start, write stdin and close it, read stdout then stderr, `waitForExit(timeout)` | `core.run`; `status`/`show` parity on the real session | known issues, section 12 |
+| Parallel briefs | osproc `runAll(jobs, parallel)`: up to `--jobs` children started and fed, collected in order | 6 fake runs of 1 s, 4 at a time | std/parfor (`scratch/parbriefs.nim`) works but runs all at once: it sizes by the pool, so `--jobs` is not honoured |
 | Hashes, token | std/crypto/sha2, std/sha1, std/crypto/sysrand, std/base64 | `scratch/ids.nim`: brief `inputs` and decision ids equal Python's; token is 32 url-safe chars like `secrets.token_urlsafe(24)` | `sha1`'s `$` is upper case: lower it |
 | Paths, env, files, time | std/paths, dirs, files, envvars, tempfiles, times | used in the proofs | std/times has no `format`/`parse` and `now()` is UTC: build `YYYY-MM-DD HH:MM` from `local(getTime())` by hand (Python's `strftime` is local time) |
 | Static files | read at run time beside the binary | as Python does | `staticRead` was tried: a relative path fails with no message (bug 107), and its const-eval sub-compile writes into `~/Projects/nimony/stdcache` even with `--stdcache` (section 1), so it is not used |
@@ -126,12 +122,13 @@ JSON is skipped, as Python skips it.
 ### 4.2 State files
 
 - Ledger `items.json`: `{items: seq[Item], seen: Table[string, int]}`.
-- Brief cache `i<N>.json`: `{inputs, generated, model, brief}`; the brief's
-  five lists are `seq[RawJson]`, so `brief.parse` keeps every entry as the
-  model wrote it, and the pages read each through `Entry` with
-  `recommended: Opt[int]`.
-- `claude -p` output: `{result, session_id, structured_output: Opt[RawJson]}`;
-  none means "the answer is not in the schema".
+- Brief cache `i<N>.json`: `{inputs, generated, model, brief}`; the brief is
+  its final type: the summary, `open_decisions: seq[Decision]` (with
+  `recommended: Opt[int]`) and four `seq[Entry]` (`text`, `why`, `source`).
+  Written back, an entry carries every field of its type (section 7).
+- `claude -p` output: `{result, session_id, structured_output: Opt[T]}` with
+  `T` the split answer or the brief; none means "the answer is not in the
+  schema".
 - POST bodies: one object type per endpoint; `item` accepts a number or a
   numeric string (`int(q["item"])`).
 
@@ -208,28 +205,28 @@ Where it differs from argparse (all confirmed with `scratch/cli.nim`):
 5. `directions ARG...` stands in for argparse's optional `action` with
    `choices` and optional `draft`.
 
-Items 1 and 2 need the user's decision (section 11).
+Decided (section 11): the CLI is smartcli as it is.
 
 ## 6. Server
 
-- `serve(port, bindAddr = "127.0.0.1", onBound)`: 127.0.0.1 only (hashi's
-  default `""` would also listen on `::1`).
-- Before-middleware, in Python's order: a method other than GET, HEAD and POST
-  gets 501 (`SimpleHTTPRequestHandler` has no handler for it); then the Host
-  check, 421 unless `127.0.0.1:<port>` or `localhost:<port>` with the bound
-  port.
-- GET: `/config.js` (no-store), `/` and `/index.html` rebuild at most every 20 s
-  (a lock around the build), every other path is a file in the output
-  directory with Python's content types (`text/html`, `text/css`,
-  `text/javascript`, `application/json`), `Last-Modified`, and 304 on
-  `If-Modified-Since`. Missing files 404.
+- std/httpserver: `listenHttp(port, tags)` and one `.passive` chain per
+  connection; the server's state (output directory, token, bound port, build
+  time, the companion) travels in a context object handed to each chain.
+- `listenHttp` listens on every interface, not 127.0.0.1 alone, and asserts on
+  a busy port (known issues, section 12). The Host, token and Origin checks
+  stay as specified, so other hosts get 421 and POSTs 403.
+- Every request, HEAD included (decided, section 11), passes the Host check:
+  421 unless `127.0.0.1:<port>` or `localhost:<port>`. A method other than
+  GET, HEAD and POST gets 501, as `SimpleHTTPRequestHandler` answers.
+- GET: `/config.js` (no-store), `/` and `/index.html` rebuild at most every 20 s,
+  every other path is a file in the output directory with Python's content
+  types (`text/html`, `text/css`, `text/javascript`, `application/json`),
+  `Last-Modified`, and 304 on `If-Modified-Since`. Missing files 404.
 - POST `/drafts`, `/decide`, `/send`, `/withdraw`, `/ask`: 403 unless the token
-  and Origin pass, then JSON replies with Python's codes (200, 404, 409, 500 with
-  `{"error": ...}`); a bad request never takes the server down.
-- 403/404/421/501 bodies: Python's `send_error` HTML page, same text.
-- hashi's log goes to a no-op callback: Python's handler logs nothing.
-- Handlers run on hashi's worker threads: the companion (one question at a
-  time) and the rebuild time live behind locks (`hashi/guarded`).
+  and Origin pass, then JSON replies with Python's codes (200, 404, 409, 500
+  with `{"error": ...}`); a bad request never takes the server down.
+- `/ask` runs `claude` on its own thread, so other requests are not held up
+  while the companion answers (one question at a time).
 - `serve` prints `serving http://127.0.0.1:<port>/  (Ctrl+C to stop)` and opens
   the browser like Python's `webbrowser`: `$BROWSER` if set, else `xdg-open`.
   Tests set `BROWSER=true`.
@@ -264,12 +261,12 @@ labelled with the Python name (nim-testing):
 
 | Python class | Tests | Nimony file |
 |---|---|---|
-| ViewTests | 2 | `tests/tviews.nim` |
+| ViewTests | 2 | `tests/tviews.nim` (ported, passing) |
 | WorkItemTests | 4 | `tests/titems.nim` |
-| ConfigTests | 5 | `tests/tconfig.nim` |
+| ConfigTests | 5 | `tests/tconfig.nim` (4 ported, passing; the prompt and page checks and the script test follow with briefs and pages) |
 | ReviewTests | 9 | `tests/treview.nim` |
 | SecurityTests | 2 | `tests/tsecurity.nim` |
-| ServerTests | 2 | `tests/tserve.nim` (its own process: `stopServe` is once per process) |
+| ServerTests | 2 | `tests/tserve.nim` |
 
 - Fixtures: the same throwaway git repos and transcripts as `setUpModule`,
   made by one shared helper (`tests/fixtures.nim`) under a temp directory.
@@ -291,7 +288,7 @@ labelled with the Python name (nim-testing):
 | ID | Source | Behaviour | Status |
 |---|---|---|---|
 | B1 | `review.py:58` `OWN_WINDOW = 120`, reflogs of every worktree where the session committed | commit discovery can take another session's commit inside the window | preserved; fix pending the user's decision |
-| B2 | `serve.py:69` `Handler` | `do_HEAD` is not overridden, so HEAD skips the Host check and serves built files' headers (no body) to any Host; `/config.js` by HEAD is 404 | preserved (unconfirmed): asked in section 11 |
+| B2 | `serve.py:69` `Handler` | `do_HEAD` is not overridden, so HEAD skips the Host check | changed, approved by the user: HEAD gets the Host check (D2) |
 | B3 | `serve.py:156` `run` | prints the port it was given, not the bound one (`--port=0` prints `:0/`) | preserved (unconfirmed) |
 | B4 | `hitl.py:241` `agents` | an agent's task joins the `text` of every block, not only text blocks, unlike `text_of` | preserved (unconfirmed) |
 
@@ -325,39 +322,41 @@ same inputs and diffs what they print and write.
 - Every remaining difference is classified (porting defect, preserved bug,
   intentional change, nondeterminism, harness defect) and listed in this file.
 
-## 11. Questions for the user
+## 11. Decisions
 
-1. **Option values (section 5, item 1).** Accept `--session=x` / `-n=3` only,
-   or should the CLI keep `--session x`? The README's examples
-   (`--session nimony`) and the companion's allowed commands use the space form.
-2. **Default command (section 5, item 2).** `hitl` alone cannot run `status`
-   with smartcli. Either `status` must be typed, or `hitl.nim` passes
-   `cliapp(spec, args)` an explicit `status` when no command word is present,
-   which is a small pre-step around the generated parser.
-3. **The companion's allowed hitl commands (ARCHITECTURE 6.2).** The profile
-   and `companion.md` name `python3 <hitl.py> --session <s> status|show|directions
-   list`. The port has to name its binary, and with smartcli the `=` form:
-   `<hitl> --session=<s> status`. This changes text the spec quotes.
-4. **B2.** Keep HEAD exempt from the Host check, as Python does by accident?
-5. **CLI errors and help (section 5, item 4).** Accept smartcli's stdout,
-   exit 1 and generated help in place of argparse's?
-
-## 12. Nimony bugs
-
-| Report | What | Workaround in the port |
+| ID | Decision | By |
 |---|---|---|
-| `bug-reports/103-case-on-result-in-generic-proc` | `case r of Ok(v)` on a `Result` fails inside a generic proc | `isOk`/`get`/`error` in generic code |
-| `bug-reports/105-osproc-pipes-inherited-by-later-children` | filed by the parallel library review; found here too (6 runs took 4 s instead of 2) | close-on-exec on the parent's ends after `startProcess` |
-| `bug-reports/106-rex-word-boundary-after-repetition` | `\b` right after a repetition never matches | hand scan for `GIT_WRITE` |
-| `bug-reports/107-staticread-relative-path-fails-silently` | `staticRead("x")` in a `const` fails with no message | not needed: static files are read at run time |
+| D1 | The CLI is smartcli as it is: options take their value after `=` (`--session=x`, `-n=3`); errors on stdout with exit 1; its generated help; `hitl` with no command prints the help (no default `status`) | user |
+| D2 | HEAD requests get the Host check too (B2) | user |
+| D3 | The companion's allowed hitl commands name the `hitl` binary in the `--session=<s>` form; ARCHITECTURE 6.2 and `companion.md` changed with it | user |
+| D4 | kroki for JSON, decoding straight into the final types (no raw, intermediate or tolerant wrapper types); config errors keep kroki's message | user |
+| D5 | std/httpserver for the server, state passed in a context object; plain `listenHttp` | user |
+| D6 | No workarounds for Nimony bugs or stdlib gaps: natural code, a comment naming the bug report, the behaviour accepted until upstream fixes it (section 12) | user |
+| D7 | Integer options that do not parse exit with `hitl: invalid value for <option>: <value>` (smartcli's `cliInvalidValue` needs the spec literal, which `cliapp` takes only as a literal) | port |
 
-Not bugs: `addr s[i]` is refused on strings (SSO; `readRawData` and
-`beginStore` instead), and nested type sections cannot sit in a stdtmpl file
-(the filter re-indents by keyword, as in Nim).
+## 12. Known issues
+
+Nimony bugs and stdlib gaps the port meets. Per D6 the code is written the
+natural way with a comment naming the report, and the behaviour is accepted
+until upstream fixes it.
+
+| Report | Where it bites | Effect on hitl |
+|---|---|---|
+| `bug-reports/105-osproc-pipes-inherited-by-later-children` | `core.launch`, `core.runAll` (parallel briefs) | a child started later holds the earlier children's pipe ends; each child is fed and its stdin closed before the next starts, which is the natural order, so nothing hangs |
+| osproc has no `communicate` (gap) | `core.collect` | stdout is read to its end before stderr: a child that fills the stderr pipe (64 KB) before closing stdout would wait for hitl; `git` and `claude` write little to stderr |
+| osproc's timeout (gap) | `core.collect` | `waitForExit(timeout)` runs after both pipes close, so a `git` or `claude` that hangs with its pipes open is not stopped (Python stops it after 20 s, 60 s or 900 s) |
+| `bug-reports/106-rex-word-boundary-after-repetition` | `review.gitCalls` (GIT_WRITE) | **blocking**: the natural pattern never matches, so no session has commits, items have no code and briefs see no diff. Milestone 3 stopped here |
+| `bug-reports/108-const-eval-ignores-stdcache-option` | every build (smartcli and rex are plugins) | builds would write into `~/Projects/nimony/stdcache`; `build.sh` uses a toolchain copy instead (a question, section 13) |
+| `bug-reports/109-listentcp-asserts-on-busy-port`, `bug-reports/113-listenhttp-cannot-choose-listen-address` | `serve.nim` (milestone 6) | the server listens on every interface, and a busy port is an assertion, not a message |
+| `bug-reports/103-case-on-result-in-generic-proc` | none so far (no generic code unpacks a `Result`) | |
+| `bug-reports/107-staticread-relative-path-fails-silently` | none (static files are read at run time) | |
+| `bug-reports/110-for-tuple-unpack-undeclared-iterator-crash` | met while writing `core.nim` (a missing import); no code depends on it | |
 
 ## 13. Milestones
 
 Each ends with its tests green in debug and release, and a commit on `main`.
+Done: 1, 2. Open questions: bug 106 (milestone 3); whether building with a
+toolchain copy (bug 108) is acceptable.
 
 1. **Plan** (this file). Commit.
 2. **Core**: `core.nim` (state paths, config, transcripts, git, runner, agents),

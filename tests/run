@@ -1,0 +1,21 @@
+#!/bin/sh
+# tests/run [NAME...]: build hitl, then build and run each tests/t*.nim (or the
+# named ones), in debug and in release. Run from anywhere.
+set -e
+cd "$(dirname "$0")/.."
+names=${*:-$(ls tests/t*.nim | sed 's|tests/||; s|\.nim$||')}
+fails=0
+for mode in debug release; do
+  flags=""; [ $mode = release ] && flags="-d:release"
+  ./build.sh hitl.nim bin/hitl -- $flags > nimcache/build-hitl.log 2>&1 || { cat nimcache/build-hitl.log; exit 1; }
+  for t in $names; do
+    if ./build.sh tests/$t.nim nimcache/tests/$mode/$t -- $flags > nimcache/build-$t.log 2>&1 &&
+       nimcache/tests/$mode/$t; then
+      echo "ok    $mode $t"
+    else
+      grep -v '^\[' nimcache/build-$t.log | tail -5
+      echo "FAIL  $mode $t"; fails=$((fails+1))
+    fi
+  done
+done
+[ $fails -eq 0 ] && echo "all passed" || { echo "$fails failed"; exit 1; }

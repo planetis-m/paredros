@@ -1,0 +1,108 @@
+## hitl: read-only views of a Claude Code session: one agent, or a coordinator
+## and its subagents.
+##
+## Reads only what already exists: the transcripts Claude Code writes and the git
+## repositories and worktrees the session works in. Agents never load hitl and do
+## no extra reporting. Control stays with the session.
+
+import std/[syncio, strutils, opt, smartcli]
+import hitl/core
+
+type Options = object   ## the parsed command line, as the commands use it
+  session, config: string
+
+proc intOption(name, value: string; default: int): int =
+  ## An integer option as argparse's type=int reads it.
+  if value.len == 0: return default
+  result = try: parseInt(value.strip) except: die("hitl: invalid value for " & name & ": " & value)
+
+# ------------------------------------------------------------------- commands
+
+proc cmdStatus(o: Options) =
+  let s = pickSession(o.session)
+  let recs = readJsonl(s.path)
+  echo "session ", s.id.short, "  ", s.project, "  last write ", ago(nowSeconds() - s.mtime), " ago"
+  var last = "-"
+  for c in toolUses(recs): last = describeCall(c.tool)
+  echo "  main      session      last: ", last
+  let ags = agents(s.path)
+  if ags.len == 0: echo "  (no subagents)"
+  for a in ags:
+    var st = $stateOf(a)
+    if stateOf(a) == asQuiet: st = "QUIET " & ago(a.age)
+    var gtxt = ""
+    let g = gitSummary(a.workdir)
+    if g.isSome:
+      let x = g.get(GitSummary())
+      gtxt = x.branch & " +" & x.ahead & (if x.dirty > 0: " dirty:" & $x.dirty else: "")
+    echo "  ", padRight(a.label, 9), " ", a.id.substr(0, 7), "  ", padRight(st, 9), " ",
+      padLeft(ago(a.age), 4), "  ", padRight(gtxt, 28), " ", short(a.description, 40)
+    if not a.finished and a.calls.len > 0:
+      echo "            last: ", describeCall(a.calls[^1].tool)
+
+proc cmdShow(o: Options; agent: string; n: int) =
+  let s = pickSession(o.session)
+  let a = resolve(s.path, agent)
+  echo "# ", a.label, " (", a.id, ")  ", a.description
+  echo "state: ", stateOf(a), "; last write ", ago(a.age), " ago; transcript ", a.path
+  let g = gitSummary(a.workdir)
+  if g.isSome:
+    let x = g.get(GitSummary())
+    echo "\n## ", x.top, "  branch ", x.branch, ", ", x.ahead, " unpushed commit(s), ", x.dirty,
+      " modified file(s)"
+    let ahead = try: parseInt(x.ahead) except: 0   # "?" when git could not count
+    if ahead > 0:
+      echo git(x.top, ["log", "--stat", "--format=%h %s", "-n", $min(ahead, 10), "HEAD"]).get("None")
+  echo "\n## last actions"
+  # Python's calls[-n:]: n = 0 means all of them
+  let first = if n > 0: max(a.calls.len - n, 0) elif n == 0: 0 else: min(-n, a.calls.len)
+  for i in first ..< a.calls.len:
+    let c = a.calls[i]
+    echo "  ", runeSlice(c.timestamp, 11, 19), "  ", describeCall(c.tool)
+  let report = finalReport(a.recs)
+  if report.len > 0:
+    echo "\n## ", (if a.finished: "final report" else: "latest message")
+    echo report
+
+proc notYet(what: string) = die("hitl: " & what & " is not ported yet")
+
+# ------------------------------------------------------------------------ main
+
+proc main() =
+  let cli = cliapp("""hitl
+Read-only views of a Claude Code session: one agent, or a coordinator and its subagents.
+
+Usage: hitl [options] status|show|review|brief|companion|serve|directions
+
+Commands:
+  status              one line per agent
+  show AGENT          one agent: commits, last actions, final report
+  review              build the HTML review pages and print the index path
+  brief ITEM...       sort the session into work items and write their briefs (model runs, cached)
+  companion ASK...    talk to a read-only fork of the session
+  serve               serve the review pages with a chat to the companion
+  directions ARG...   list your saved decisions (list), or re-check and copy one (send DRAFT)
+
+Options:
+  --session=S       session id prefix or project-name substring
+  --config=FILE     config file (default: .hitl.json in the session's working directory)
+  -n, --n=N         show: how many last actions (default 8)
+  --open            review: open the index in the browser
+  --out=DIR         review: output directory (default ~/.local/state/hitl/review/<session>)
+  --model=M         brief: the model (default opus); companion, serve: the model
+  --force           brief: rewrite even if the inputs did not change
+  --jobs=N          brief: parallel brief runs (default 4)
+  --port=N          serve: the port (default 8765)
+  -h, --help        show this help and exit""")
+  let o = Options(session: cli.session, config: cli.config)
+  case cli.command
+  of cmdStatus: cmdStatus(o)
+  of cmdShow: cmdShow(o, cli.agent, intOption("-n", cli.n, 8))
+  of cmdReview: notYet("review")
+  of cmdBrief: notYet("brief")
+  of cmdCompanion: notYet("companion")
+  of cmdServe: notYet("serve")
+  of cmdDirections: notYet("directions")
+  of cmdNone: discard   # cliapp has already refused a command line without one
+
+main()

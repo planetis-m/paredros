@@ -1,0 +1,13 @@
+{
+  "spec": "doc/language.md",
+  "reader": "a Nimony developer",
+  "users": "people writing Nimony code",
+  "compare": {
+    "label": "Compare with Nim",
+    "prompt": "Investigate how Nim 2 and Nimony handle the cases in this work item. Be short.\n- Nim 2: write a small file in {scratch} and run `{home}/Projects/Nim/bin/nim r --nimcache:{scratch}/cache {scratch}/<file>.nim`. Report the exact output.\n- Nimony: never run a nimony binary, neither the human's checkout nor an agent's worktree; that writes their caches. Use doc/language.md, the tests in the repository (tests/nimony/...), and the runs the agents recorded in their transcripts. Say which of these each answer comes from, and say plainly when nothing shows what Nimony does.",
+    "allow": [
+      "{home}/Projects/Nim/bin/nim c --nimcache:{scratch}/cache",
+      "{home}/Projects/Nim/bin/nim r --nimcache:{scratch}/cache"
+    ]
+  }
+}
