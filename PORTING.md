@@ -1,6 +1,6 @@
 # Porting hitl to Nimony
 
-Status: **milestone 3 done** (core, `status`, `show`, `brief`).
+Status: **milestone 4 done** (core, `status`, `show`, `brief`, `review`).
 
 - Source: `~/Projects/hitl`, branch `general`, `cf055de`. Python 3.15, stdlib
   only. `ARCHITECTURE.md` and `DESIGN.md` there are locked and govern this port.
@@ -43,7 +43,10 @@ ARCHITECTURE.md section 3 puts them.
 hitl.nim            CLI (smartcli) and the cmd* procs            <- hitl.py commands
 hitl/core.nim       state paths, config, transcript adapter,     <- hitl.py library part
                     git(), process runner, agents, data types
-hitl/briefs.nim     split, briefs, ledger, cache, model calls    <- brief.py
+hitl/briefs.nim     split, briefs, model calls                   <- brief.py
+hitl/store.nim      the ledger and brief files, Section enum     <- brief.py (ledger and cache)
+hitl/prompts.nim    the two prompts, byte for byte               <- brief.SPLIT, brief.PROMPT
+hitl/model.nim      work-item types, lanes, the diff's files     <- review.py (shared by review and pages)
 hitl/review.nim     sources, commits, current code, collect,     <- review.py data + build
                     build, renderDiff
 hitl/html.nim       esc, inline, markdown, template glue         <- review.py markdown part
@@ -261,9 +264,9 @@ labelled with the Python name (nim-testing):
 | Python class | Tests | Nimony file |
 |---|---|---|
 | ViewTests | 2 | `tests/tviews.nim` (ported, passing) |
-| WorkItemTests | 4 | `tests/titems.nim` (3 ported, passing; their page and draft checks follow with pages and drafts) |
-| ConfigTests | 5 | `tests/tconfig.nim` (4 ported, passing; the script test follows with pages) |
-| ReviewTests | 9 | `tests/treview.nim` |
+| WorkItemTests | 4 | `tests/titems.nim`, the page part in `tests/treview.nim` (3 passing; the page-identity test follows with drafts) |
+| ConfigTests | 5 | `tests/tconfig.nim`, the script test in `tests/treview.nim` (all 5 passing) |
+| ReviewTests | 9 | `tests/treview.nim` (6 ported, passing; the draft and companion tests follow) |
 | SecurityTests | 2 | `tests/tsecurity.nim` (the model-run test ported, passing) |
 | ServerTests | 2 | `tests/tserve.nim` |
 
@@ -289,6 +292,7 @@ labelled with the Python name (nim-testing):
 | B1 | `review.py:58` `OWN_WINDOW = 120`, reflogs of every worktree where the session committed | commit discovery can take another session's commit inside the window | preserved; fix pending the user's decision |
 | B2 | `serve.py:69` `Handler` | `do_HEAD` is not overridden, so HEAD skips the Host check | changed, approved by the user: HEAD gets the Host check (D2) |
 | B3 | `serve.py:156` `run` | prints the port it was given, not the bound one (`--port=0` prints `:0/`) | preserved (unconfirmed) |
+| B5 | `hitl.py:341` `cmd_review` | `review --open` with a relative `--out` fails: `Path.as_uri()` refuses a relative path | preserved |
 | B4 | `hitl.py:241` `agents` | an agent's task joins the `text` of every block, not only text blocks, unlike `text_of` | preserved (unconfirmed) |
 
 Each gets a `# PORTBUG(Bn): ...` marker at its translated site.
@@ -396,6 +400,9 @@ nimony-error-handling channels (`Opt` for absence, `{.raises.}` with
 | `status` | real session 26c3c765 | byte-identical (39 lines) |
 | `show` | real session, all 37 agents, no `-n`, `-n=3`, `-n=0`; a label, an unknown and an ambiguous spec | byte-identical, exit codes equal |
 | `brief` | real session, fake claude splitting into 3 items (22 commits, 37 agents, 71 turns) | stdout equal; the 4 prompts byte-identical (up to 194 KB); ledger and briefs equal parsed, without `generated`; a second run "unchanged" and `--force 2 3` equal (`tests/parity/brief.sh`) |
+
+| `review --out` | real session, 4 items (3 with real briefs converted by `brief.parse`, one without), with and without `examples/nimony.hitl.json` | all 8 files equal: the pages byte for byte (item 1 is 780 KB, the diff of 22 commits), `tips.json` parsed (`tests/parity/review.sh`) |
+| `html.untimed`, `html.markdown` | the sources and texts of the real briefs and 37 real agent reports, with edge cases | 137 of 137 equal (`scratch/untimed_corpus.*`) |
 
 Differences found and accepted so far: the brief cache writes every field of an
 entry's type (`why: ""` on entries the model wrote without it, `recommended:

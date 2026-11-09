@@ -670,3 +670,33 @@ proc decisionId*(question: string): string =
   var st = newSha1State()
   st.update(collapse(question))
   ($SecureHash(st.finalize())).toLowerAscii.substr(0, 9)
+
+# -------------------------------------------------------------------- browser
+
+proc pyPath*(p: string): string =
+  ## str(pathlib.Path(p)): no empty or "." parts, no trailing slash.
+  var parts: seq[string] = @[]
+  for x in p.split('/'):
+    if x.len > 0 and x != ".": parts.add x
+  result = (if p.startsWith("/"): "/" else: "") & parts.join("/")
+  if result.len == 0: result = "."
+
+proc fileUri*(path: string): string =
+  ## Path.as_uri() of an absolute path: file:// and the path, percent-encoded.
+  result = "file://"
+  for c in path:
+    if c in {'A'..'Z', 'a'..'z', '0'..'9', '-', '.', '_', '~', '/'}: result.add c
+    else: result.add "%" & toHex(ord(c), 2)
+
+proc openBrowser*(url: string) =
+  ## webbrowser.open(url): $BROWSER if set, else xdg-open; not waited for.
+  let b = getEnv("BROWSER").split(':')[0]
+  var argv: seq[string] = @[]
+  if b.len > 0:
+    if "%s" in b: argv = b.replace("%s", url).splitWhitespace
+    else:
+      argv = b.splitWhitespace
+      argv.add url
+  else: argv = @["xdg-open", url]
+  try: discard startProcess(argv[0], args = argv.toOpenArray(1, argv.high), options = {poUsePath, poParentStreams})
+  except: discard

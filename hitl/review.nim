@@ -10,9 +10,11 @@
 ## bug fixed, a module ported, a feature. `hitl brief` sorts the session's turns,
 ## agents and commits into items; an item's number never changes once given.
 
-import std/[syncio, os, strutils, tables, opt, algorithm, rex, times]
+import std/[syncio, os, paths, dirs, files, strutils, tables, opt, result, algorithm, rex, times]
+import kroki
 from std/unicode import runeLen
-import core, store
+import core, store, model, pages
+export model
 
 const
   DiffLimit = 600_000   ## characters of diff per item
@@ -20,38 +22,6 @@ const
   OwnWindow = 120       ## seconds after one of the session's committing git calls in which its commits land
   # PORTBUG(B1): review.py:58 - commits are found by reflog time in every worktree
   # the session committed in; another session's commit inside the window is taken.
-
-type
-  Turn* = object   ## what the human typed and everything the session said until the next one
-    key*, time*, human*: string
-    texts*: seq[string]
-  Commit* = object
-    key*, sha*, repo*, common*, subject*: string
-    time*: int
-    parents*: seq[string]
-    agent*: Opt[string]   ## the key of the agent that made it
-  Sources* = object
-    recs*: seq[Rec]
-    turns*: seq[Turn]
-    agents*: seq[Agent]
-    commits*: seq[Commit]
-  Code* = object   ## an item's current code
-    commits*, earlier*: seq[Commit]
-    tip*, diff*: string
-  WorkItem* = object
-    n*: int
-    title*: string
-    turns*: seq[Turn]
-    agents*: seq[Agent]
-    code*: Code
-  Collected* = object
-    session*: SessionId
-    cwd*, repo*, generated*: string
-    config*: Config
-    sources*: Sources
-    items*: seq[WorkItem]
-
-proc key*(a: Agent): string = "agent:" & a.id
 
 # --------------------------------------------------------------------- time
 
@@ -312,3 +282,74 @@ proc codeTips*(spath, configFile: string): Table[int, string] =
   ## {item: the tip of its current code}, for the stale check of saved decisions.
   result = initTable[int, string]()
   for it in collect(spath, configFile, withDiff = false).items: result[it.n] = it.code.tip
+
+# --------------------------------------------------------------------- build
+
+const MonthAbbr = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+proc updated*(d: Collected): string =
+  ## 'Nimony, updated 17:57' (the project's directory name); the date only when
+  ## the data is not from today.
+  let name = extractFilename(d.repo)
+  let title = name.substr(0, 0).toUpperAscii & name.substr(1)
+  let g = d.generated   # "YYYY-MM-DD HH:MM", local time
+  if g.substr(0, 9) == localStamp().substr(0, 9): return title & ", updated " & g.substr(11)
+  let m = try: parseInt(g.substr(5, 6)) except: 0
+  let day = try: parseInt(g.substr(8, 9)) except: 0
+  if m < 1 or m > 12: return title
+  title & ", updated " & MonthAbbr[m - 1] & " " & $day & " " & g.substr(11)
+
+proc staticDir*(): string = appDir() & "/static"
+
+proc build*(spath, configFile, outDir: string): string =
+  ## Writes the pages into outDir and returns the index's path. Deletes only pages
+  ## of items that are gone; every file is written atomically.
+  let d = collect(spath, configFile)
+  ensureDir(outDir)
+  var nums: seq[int] = @[]
+  var titles = initTable[int, string]()
+  for r in d.items:
+    nums.add r.n
+    titles[r.n] = r.title
+  nums.sort()
+  try:
+    for (kind, p) in walkDir(path(outDir)):   # only pages of items that are gone; nothing else in out
+      let name = extractFilename($p)
+      if name.startsWith("i") and name.endsWith(".html") and name.len > 6 and
+          name.substr(1, name.len - 6).allCharsInSet(Digits):
+        let n = try: parseInt(name.substr(1, name.len - 6)) except: -1
+        if n notin titles: removeFile(p)
+  except: discard
+  var briefs = initTable[int, Cached]()
+  for r in d.items:
+    let b = load(d.session, r.n)
+    if b.isSome: briefs[r.n] = b.get(Cached())
+  for r in d.items:
+    let i = nums.find(r.n)
+    let prev = if i > 0: nums[i - 1] else: 0
+    let nxt = if i + 1 < nums.len: nums[i + 1] else: 0
+    let b = if r.n in briefs: some(briefs.getOrDefault(r.n, Cached())) else: none[Cached]()
+    writeAtomic(outDir & "/i" & $r.n & ".html",
+                itemPage(r, d, b, prev, nxt, titles.getOrDefault(nxt, "")))
+  try:
+    for (kind, p) in walkDir(path(staticDir())):   # the pages' CSS and JS, beside them so file mode works too
+      writeAtomic(outDir & "/" & extractFilename($p), readFile($p))
+  except: die("hitl: cannot read " & staticDir())
+  var tips = initTable[string, string]()
+  for r in d.items: tips[$r.n] = r.code.tip
+  writeAtomic(outDir & "/tips.json", toJson(tips).get("{}"))
+  result = outDir & "/index.html"
+  writeAtomic(result, indexPage(d, briefs, updated(d)))
+
+proc builtTips*(outDir: string): Opt[Table[int, string]] =
+  ## {item: code tip} as the last build found them, for the page's stale marks.
+  let t = readText(outDir & "/tips.json")
+  if t.isNone: return none[Table[int, string]]()
+  case fromJson(t.get(""), Table[string, string])
+  of Ok(raw):
+    var tips = initTable[int, string]()
+    for k, v in raw:
+      let n = try: parseInt(k) except: return none[Table[int, string]]()
+      tips[n] = v
+    result = some(tips)
+  of Err(_): result = none[Table[int, string]]()

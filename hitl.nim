@@ -64,6 +64,16 @@ proc cmdShow(o: Options; agent: string; n: int) =
     echo "\n## ", (if a.finished: "final report" else: "latest message")
     echo report
 
+proc cmdReview(o: Options; outDir: string; open: bool) =
+  let s = pickSession(o.session)
+  let dir = if outDir.len > 0: pyPath(outDir) else: state(skReview, s.id)
+  let index = build(s.path, o.config, dir)
+  echo index
+  if open:
+    # PORTBUG(B5): hitl.py:341 - Path.as_uri() refuses a relative --out
+    if not index.startsWith("/"): die("hitl: relative path can't be expressed as a file URI")
+    openBrowser(fileUri(index))
+
 proc cmdBrief(o: Options; items: seq[string]; model: string; force: bool; jobs: int) =
   var numbers: seq[int] = @[]
   for x in items: numbers.add intOption("N", x, 0)
@@ -112,7 +122,7 @@ Options:
   case cli.command
   of cmdStatus: cmdStatus(o)
   of cmdShow: cmdShow(o, cli.agent, intOption("-n", cli.n, 8))
-  of cmdReview: notYet("review")
+  of cmdReview: cmdReview(o, cli.out, cli.open)
   of cmdBrief: cmdBrief(o, cli.item, (if cli.model.len > 0: cli.model else: "opus"), cli.force,
                         intOption("--jobs", cli.jobs, 4))
   of cmdCompanion: notYet("companion")
