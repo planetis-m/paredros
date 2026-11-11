@@ -95,7 +95,7 @@ only from the ones above it, never below, and never inside a proc.
 | 1 | state, session, config | done |
 | 1 | render | done |
 | 2 | brief, work | done |
-| 3 | drafts, companion | to do |
+| 3 | drafts, companion | done |
 | 4 | pages | to do |
 | 4 | serve, CLI | to do |
 | 5 | consistency pass, docs | to do |
@@ -116,8 +116,10 @@ bug, left for another day.
 | `render.inline` | a bare URL right after a non-ASCII digit (`٣`, `²`) is linked | std/unicode has no digit test (Python's `str.isalnum()`) |
 | `render.markdown` | a list item numbered with non-ASCII digits (`٣. x`) is a paragraph | std/rex's `\d` is ASCII |
 | `render.diff` | a C-quoted path with bytes that are not UTF-8 keeps them, where Python writes U+FFFD | std/unicode has no decoding with replacement |
-| `brief` (`short`, `decisionId`, a new item's title) | `\x1c`..`\x1f` do not separate words when white space is collapsed | std/unicode's white space list leaves out the separators Python's `str.split()` counts |
-| `brief`: the ledger and the brief cache | a control character other than `\b \f \n \r \t` in a title, key or brief is written raw, which is not JSON | std/json's `$` does not escape them (bug-reports/104-json-dollar-control-chars-unescaped) |
-| `brief`: the ledger and the brief cache | written on one line, not indented, and non-ASCII text as it is, not `\u`-escaped (both still JSON) | std/json has no pretty printer |
+| `brief` (`short`, `decisionId`, a new item's title), `drafts.decide` (question, option) | `\x1c`..`\x1f` do not separate words when white space is collapsed | std/unicode's white space list leaves out the separators Python's `str.split()` counts |
+| `brief`: the ledger and the brief cache; `drafts.decide`: a draft; `companion.setup`: the settings | a control character other than `\b \f \n \r \t` in a title, key or brief is written raw, which is not JSON | std/json's `$` does not escape them (bug-reports/104-json-dollar-control-chars-unescaped) |
+| `brief`: the ledger and the brief cache; `drafts.decide`: a draft (Python keeps non-ASCII text too); `companion.setup`: the settings | written on one line, not indented, and non-ASCII text as it is, not `\u`-escaped (both still JSON) | std/json has no pretty printer |
 | `brief.generateAll` | the briefs' model runs go one after another, whatever `--jobs` says | runs started at once from std/parfor's `||` wait on each other for ever: std/osproc's children inherit each other's pipes on Linux (bug-reports/105-osproc-pipes-inherited-by-later-children) |
 | `work.epoch` | only `YYYY-MM-DDTHH:MM:SS`, with a fraction, then `Z`, `±HH:MM` or no zone, is read (else 0, as for bad input), and a time with no zone is taken as UTC, not local time | std/times has no parse (bug-reports/119-times-cannot-parse-a-date) |
+| `drafts` (`allDrafts`, `decide`, `withdraw`) | a draft number is ASCII digits only: `d٣.json` is no draft (Python's `\d` and `int()` take any Unicode digit), nor is one too big for an int | std/unicode has no digit test |
+| `drafts.decide` | a decision id with non-ASCII letters or digits is refused (Python's `\w` takes them) | std/unicode has no digit test, std/rex's `\w` is ASCII |
