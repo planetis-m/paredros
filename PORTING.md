@@ -97,7 +97,7 @@ only from the ones above it, never below, and never inside a proc.
 | 2 | brief, work | done |
 | 3 | drafts, companion | done |
 | 4 | pages | done |
-| 4 | serve, CLI | to do |
+| 4 | serve, CLI | done |
 | 5 | consistency pass, docs | to do |
 
 ## Gaps
@@ -109,7 +109,7 @@ bug, left for another day.
 |---|---|---|
 | `session.run` | a child that keeps stdout or stderr open is not stopped at the timeout, only once it closes them (ProcessTests' timeout test passes, after 30 s); a child that fills its stderr pipe while stdout is read waits for ever | std/osproc has no `communicate` (bug-reports/120-osproc-has-no-communicate): stdout, then stderr are read to their end, then `waitForExit` gets the time left |
 | `session.run` | a program that cannot be found or started runs and exits 127 instead of failing to start | std/osproc's fork + execve reports a failed exec as exit 127 |
-| `config.load`, `brief.askModel` | why a file, or claude's output, is not JSON is said in std/json's words, not Python's | that is the message std/json gives |
+| `config.load`, `brief.askModel`, `serve` (a POST body, the companion's answer) | why a file, a body or claude's output is not JSON is said in std/json's words, not Python's | that is the message std/json gives |
 | `render.inline` | the text of **strong** and *emphasis* holds no `*` (`**a*b**`, `*a*b*` stay as written), *emphasis* may touch another `*` (`**a*` and `*a**` get one), and a non-ASCII character next to a `*` counts as a word character | std/rex has no lazy repeats and no lookaround: render.py's STRONG and EM are written without them, `\B` for "no word character before or after" |
 | `render` | `\s` is ASCII white space and the control characters: a URL, a fence's language or emphasis runs over U+00A0 and other Unicode spaces, and stops at `\x01` | std/rex has no Unicode classes |
 | `render` | text is stripped of Unicode white space except `\x1c`..`\x1f` | std/unicode's white space list leaves out the separators Python's `str.isspace()` counts |
@@ -127,3 +127,11 @@ bug, left for another day.
 | `pages.untimed` | of separators in a row only the first is taken out: `(10:01, 10:05)` leaves `,)` where Python leaves `)` (seen on the test fixtures, not on the real session) | std/rex has no lookahead: `([(,;])\s*(?=[,;)])` is written `[(,;]\s*([,;)])`, keeping the separator it matched |
 | `pages.updated` | a project name whose first letter's capital is two letters (`ß`) gets one | std/unicode maps one rune to one rune |
 | `pages.build`, `pages.builtTips` | a page or tips.json item number is ASCII digits only: `i٣.html` is no page and is never deleted | std/unicode has no digit test |
+| `serve.run` | the server listens on every interface, not on 127.0.0.1 only (the Host check and the token still hold) | std/httpserver's `listenHttp` takes no address (bug-reports/113-listenhttp-cannot-choose-listen-address) |
+| `serve.run` | a port in use stops hitl with a failed assertion, not a message | std/ioring's `listenTcp` asserts that bind succeeds |
+| `serve` | a client that goes away before its answer is written stops the whole server (SIGPIPE) | std/httpserver neither ignores nor suppresses the signal (bug-reports/114-httpserver-sigpipe-kills-process-on-gone-peer) |
+| `serve` | a POST body over 1 MiB closes the connection unanswered; Python reads any length | std/httpserver's `readBody` has no form without a limit |
+| `serve` | a refusal or a missing file (421, 403, 404, 501) has no body, where Python sends an HTML error page; files have no Last-Modified and are never a 304; a target that climbs above the pages (`/../x`) is a 400, not a 404 | std/httpserver has no error pages and no file handler, and refuses such a target itself |
+| `serve` (every JSON reply) | non-ASCII text is written as it is, not `\u`-escaped as Python's `json.dumps` does, and control characters other than `\b \f \n \r \t` raw | std/json has no ASCII mode, and its `$` does not escape them (bug-reports/104-json-dollar-control-chars-unescaped) |
+| `serve.run` (the browser) | `$BROWSER` is one command given the URL, else `xdg-open`; Python's webbrowser also reads a list of commands in `$BROWSER`, fills in `%s` and knows the desktop's browsers | Nimony's standard library has no browser module |
+| `hitl.nim` | with no command the help follows `[Error] missing arguments` and hitl exits 1 (Python: the help alone, exit 0); a bad command line is told on stdout with the help and exit 1 (Python: stderr, the usage, exit 2); an option's value is given as `--port=N` or `--port:N`, not `--port N` | that is how std/smartcli parses |
