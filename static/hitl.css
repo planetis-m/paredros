@@ -33,7 +33,6 @@ a{color:var(--tint);text-underline-offset:3px;text-decoration-thickness:1px}
 svg{flex:none}
 main{max-width:44rem;margin:0 auto;padding:32px 24px 160px}
 main.wide{max-width:72rem}
-main.item{max-width:44rem}
 
 /* type: large title 34, title 22, lead 20, question 18, body 17, callout 16,
    subheadline 15, footnote 13, line numbers 12 */
@@ -43,6 +42,10 @@ code{font:.86em var(--mono);background:var(--fill);padding:.1em .38em;border-rad
 h1 code{font-weight:500;border-radius:8px}
 
 /* the three button styles: filled (one per decision), soft, text */
+.filled{font:600 15px/1.3 var(--sans);padding:0 18px;min-height:44px;border:0;border-radius:12px;
+background:var(--tint-fill);color:var(--on-tint);cursor:pointer;transition:background-color .15s ease-out}
+.filled:hover{background:var(--tint-press)}
+.filled:disabled{background:var(--fill);color:var(--ink2);cursor:default}
 .soft{display:inline-flex;align-items:center;justify-content:center;gap:8px;flex:none;font:600 15px/1.3 var(--sans);padding:0 18px 0 16px;
 min-height:44px;border:0;border-radius:12px;background:var(--tint-soft);color:var(--tint);cursor:pointer;text-decoration:none;
 transition:background-color .15s ease-out}
@@ -71,7 +74,6 @@ h1+section,h1+[hidden]+section{margin-top:32px}
 #hitl-decisions li{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 20px;align-items:center;padding:18px 20px;
 transition:background-color .15s ease-out}
 #hitl-decisions li:hover:not(:has(.dact:hover,.cfail:hover)){background:var(--hover)}
-#hitl-decisions li+li::before{content:"";position:absolute;top:0;left:20px;right:0;border-top:1px solid var(--sep)}
 .dmain{min-width:0}
 .dans{margin:0;font-weight:500;overflow-wrap:anywhere}
 .dans .mark{margin-left:10px;font-size:13px;font-weight:400;color:var(--ink2);white-space:nowrap}
@@ -85,21 +87,17 @@ a.dq:focus-visible::after{outline:3px solid var(--ring);outline-offset:-3px;bord
 .dact{display:flex;justify-content:flex-end}
 .dline{grid-column:1/-1;margin:4px 0 0;font-size:15px;line-height:1.45;color:var(--ink2)}
 .dline:empty{display:none}
-.dsent{margin:12px 0 0;padding-left:4px;font-size:13px;line-height:1.4;color:var(--ink2)}
+.dsent,.dnote,.built{margin:12px 0 0;padding-left:4px;font-size:13px;line-height:1.4;color:var(--ink2)}
 /* copying failed: the exact text, selected, ready for Ctrl+C */
 .cfail{grid-column:1/-1;margin-top:8px}
 .cfail p{margin:0 0 8px;font-size:15px;line-height:1.45;color:var(--ink)}
-.cfail textarea{display:block;width:100%;min-height:5.5em;padding:10px 14px;border:1px solid var(--edge);border-radius:12px;
+.cfail textarea,#hitl-q{display:block;width:100%;min-height:5.5em;padding:10px 14px;border:1px solid var(--edge);border-radius:12px;
 background:var(--surface);color:var(--ink);font:15px/1.5 var(--sans);resize:vertical}
-.cfail textarea:focus-visible{outline-offset:1px;border-radius:12px}
+.cfail textarea:focus-visible,#hitl-q:focus-visible{outline-offset:1px;border-radius:12px}
 .lane{margin:0 0 52px;--card:var(--surface);--card-h:var(--hover);--cap:var(--clear-cap);--cap-ink:var(--ink2)}
 .lane-decide{--card:var(--decide);--card-h:var(--decide-h);--cap:var(--decide-cap);--cap-ink:var(--decide-ink)}
 .lane-review{--card:var(--review);--card-h:var(--review-h);--cap:var(--review-cap);--cap-ink:var(--review-ink)}
-.lane>.ch{display:flex;align-items:baseline;gap:10px;margin:0 0 14px;padding-left:4px}
-.lane>.ch .c{font-size:22px;line-height:1.27;color:var(--ink2)}
-.lane.z{margin-bottom:28px}
-.lane.z>.ch{margin:0}
-.lane.z>.ch h2,.lane.z>.ch .c{color:var(--ink2);font-weight:500}
+.lane>.sh{margin-bottom:14px}
 .cards{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(15rem,1fr));gap:16px}
 .cards>li{display:grid}
 a.card{display:flex;flex-direction:column;align-items:flex-start;padding:16px 20px 18px;border-radius:14px;background:var(--card);
@@ -110,7 +108,7 @@ a.card:hover{background:var(--card-h)}
 margin-top:10px;font-weight:500;line-height:1.45;overflow-wrap:anywhere}
 .card .tt code{background:var(--cap)}
 .card .sub{display:block;min-height:1.45em;margin-top:10px;font-size:15px;line-height:1.45;font-weight:500;color:var(--cap-ink)}
-.built{margin:96px 0 0;padding-left:4px;font-size:13px;line-height:1.4;color:var(--ink2)}
+.built{margin-top:96px}
 
 /* item page: the same sections in the same places on every page */
 .head{margin:0 0 56px}
@@ -129,7 +127,6 @@ section.z .sh{margin:0}
 section.z h2,section.z .sh .c{color:var(--ink2);font-weight:500}
 /* the code alone breaks out wider than the text column */
 #code{margin-inline:calc(50% - min(38rem, 50vw - 32px));margin-top:72px;margin-bottom:40px}
-#code.z{margin-bottom:40px}
 .nocode{margin:8px 0 0;padding-left:4px;color:var(--ink2)}
 /* the end of an item: the next one, by name */
 .end a{display:flex;align-items:center;gap:16px;min-height:64px;padding:12px 20px;border-radius:14px;background:var(--surface);
@@ -145,7 +142,7 @@ color:var(--ink);text-decoration:none;transition:background-color .15s ease-out}
    hairlines that start at the text, not at the edge */
 ul.items{list-style:none;margin:0;padding:0;background:var(--surface);border-radius:14px}
 ul.items>li{position:relative;padding:18px 20px}
-ul.items>li+li::before{content:"";position:absolute;top:0;left:20px;right:0;border-top:1px solid var(--sep)}
+ul.items>li+li::before,#hitl-decisions li+li::before{content:"";position:absolute;top:0;left:20px;right:0;border-top:1px solid var(--sep)}
 .text{margin:0;max-width:40rem}
 .why{margin:6px 0 0;font-size:16px;line-height:1.5;color:var(--ink2);max-width:40rem}
 .src{margin:8px 0 0;font-size:13px;line-height:1.4;color:var(--ink2)}
@@ -203,18 +200,12 @@ font:16px/1.5 var(--sans);color:var(--ink);resize:none;overflow:hidden}
    happened (an icon, a short word, Copy, Undo). Every state is one line of
    the same height, so switching between them does not move the page */
 .qstate{display:flex;flex-wrap:wrap;align-items:center;gap:0 20px;min-height:44px;margin-top:8px;font-size:15px;line-height:22px;color:var(--ink2)}
-.qstate .commit{font:600 15px/1.3 var(--sans);padding:0 18px;min-height:44px;border:0;border-radius:12px;
-background:var(--tint-fill);color:var(--on-tint);cursor:pointer;transition:background-color .15s ease-out}
-.qstate .commit:hover{background:var(--tint-press)}
-.qstate .commit:disabled{background:var(--fill);color:var(--ink2);cursor:default}
 .qstate .msg{display:inline-flex;align-items:center;gap:8px;padding:11px 0}
 .qstate .msg svg{color:var(--tint)}
 .qstate .msg.err{color:var(--ink)}
 .qstate .link{font:500 15px/22px var(--sans);min-height:44px;padding:0 8px;margin:0 -8px;border:0;border-radius:8px;
 background:none;color:var(--tint);cursor:pointer}
 .qstate .link:hover{text-decoration:underline;text-underline-offset:3px}
-.q .cfail{margin-top:8px}
-#open_decisions .dnote{margin:12px 0 0;padding-left:4px;font-size:13px;line-height:1.4;color:var(--ink2)}
 @media (max-width:640px){#open_decisions ul.items>li{padding:20px 16px}#open_decisions ul.items>li+li::before{left:16px}
 .q .text{font-size:17px}.opt,.own{padding-left:42px}.opt::before,.own::before{left:14px}.opts>li+li::after{left:42px}
 .mark{margin-left:0;flex-basis:100%}}
@@ -245,17 +236,16 @@ table.diff tr.rem td{background:var(--rem)} table.diff tr.rem td:nth-child(-n+3)
 table.diff tr.hunk td{background:var(--hunk);color:var(--ink2);padding:6px 12px}
 @media (max-width:640px){main{padding:16px 16px 120px}h1{font-size:28px;letter-spacing:-.018em}
 .top{margin-bottom:24px}.summary{font-size:18px}.head{margin-bottom:48px}section{margin-bottom:48px}
-ul.items>li{padding:16px}ul.items>li+li::before{left:16px}
+ul.items>li{padding:16px}ul.items>li+li::before,#hitl-decisions li+li::before{left:16px}
 details.file>summary{padding:12px 16px}details.file+details.file>summary::after{left:44px}
-#code{margin-inline:0}.cards{gap:12px}.lane{margin-bottom:48px}.lane.z{margin-bottom:28px}
-#hitl-decisions li{grid-template-columns:minmax(0,1fr);padding:16px}#hitl-decisions li+li::before{left:16px}
+#code{margin-inline:0}.cards{gap:12px}.lane{margin-bottom:48px}
+#hitl-decisions li{grid-template-columns:minmax(0,1fr);padding:16px}
 .dact{justify-content:flex-start;margin-top:8px}.end a{padding:12px 16px}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important;scroll-behavior:auto!important}}
 /* the chat: a translucent sheet at the side, floating controls on material */
-#hitl-ask{position:absolute;z-index:40;display:none;align-items:center;gap:8px;font:600 15px/1.3 var(--sans);padding:0 18px 0 16px;
-min-height:44px;border-radius:10px;border:0;background:var(--tint-fill);color:var(--on-tint);cursor:pointer;box-shadow:var(--float)}
+#hitl-ask{position:absolute;z-index:40;display:none;align-items:center;gap:8px;padding:0 18px 0 16px;border-radius:10px;
+box-shadow:var(--float);transition:none}
 #hitl-ask.on{display:inline-flex}
-#hitl-ask:hover{background:var(--tint-press)}
 #hitl-open{position:fixed;right:24px;bottom:24px;z-index:20;display:none;align-items:center;gap:8px;font:600 15px/1.3 var(--sans);
 padding:0 20px 0 16px;min-height:44px;border-radius:22px;border:1px solid var(--sep);background:var(--raised);color:var(--tint);cursor:pointer;
 box-shadow:var(--float);transition:background-color .15s ease-out}
@@ -274,7 +264,7 @@ transition:opacity .16s ease-out,transform .16s ease-out,visibility 0s linear .1
 @media (min-width:1480px){html.hitl-open main{margin-right:29rem}}
 #hitl-chat header{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 12px 12px 24px;border-bottom:1px solid var(--sep)}
 #hitl-chat header h2{font-size:17px;line-height:1.35;font-weight:600;letter-spacing:0}
-#hitl-close{flex:none;width:44px;height:44px;display:grid;place-items:center;border:0;border-radius:50%;background:none;color:var(--ink2);cursor:pointer}
+#hitl-close,#hitl-unquote{flex:none;width:44px;height:44px;display:grid;place-items:center;border:0;border-radius:50%;background:none;color:var(--ink2);cursor:pointer}
 #hitl-close:hover{background:var(--fill);color:var(--ink)}
 #hitl-close:focus-visible,#hitl-unquote:focus-visible{border-radius:50%}
 #hitl-log{flex:1;overflow:auto;padding:20px 24px}
@@ -287,6 +277,9 @@ max-height:7.5em;overflow:auto}
 #hitl-log .it>:last-child{margin-bottom:0}
 #hitl-log .it p,#hitl-log .it ul,#hitl-log .it ol{margin:0 0 12px}
 #hitl-log .it ul,#hitl-log .it ol{padding-left:22px}
+#hitl-log .refused{margin-top:12px;font-size:14px;color:var(--ink2)}
+#hitl-log .refused summary{cursor:pointer}
+#hitl-log .refused code{display:block;margin-top:4px;font-family:var(--mono);overflow-wrap:anywhere}
 #hitl-log .it pre{overflow:auto;margin:0 0 12px;background:var(--fill);padding:12px 14px;border-radius:12px;font:13px/1.55 var(--mono)}
 #hitl-log .it pre code{background:none;padding:0;font-size:inherit}
 #hitl-log .it blockquote{margin:0 0 12px;padding:10px 14px;border-radius:12px;background:var(--fill);color:var(--ink2)}
@@ -301,15 +294,12 @@ max-height:7.5em;overflow:auto}
 #hitl-qbox{display:none;align-items:flex-start;gap:8px;margin:0 0 12px;padding:8px 6px 8px 14px;background:var(--tint-soft);border-radius:12px}
 #hitl-qbox.on{display:flex}
 #hitl-quote{flex:1;margin:4px 0;color:var(--ink);font-size:14px;line-height:1.45;max-height:6em;overflow:auto}
-#hitl-unquote{flex:none;width:44px;height:44px;margin:-6px -2px -6px 0;display:grid;place-items:center;border:0;border-radius:50%;background:none;color:var(--ink2);cursor:pointer}
+#hitl-unquote{margin:-6px -2px -6px 0}
 #hitl-unquote:hover{color:var(--ink);background:var(--tint-soft2)}
-#hitl-q{display:block;width:100%;min-height:5.5em;font:16px/1.5 var(--sans);padding:10px 14px;border:1px solid var(--edge);border-radius:12px;
-background:var(--surface);color:var(--ink);resize:vertical}
+#hitl-q{font-size:16px}
 #hitl-q::placeholder{color:var(--ink2);opacity:1}
-#hitl-q:focus-visible{outline-offset:1px;border-color:var(--tint);border-radius:12px}
+#hitl-q:focus-visible{border-color:var(--tint)}
 #hitl-form .row{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:12px;font-size:13px;color:var(--ink2);line-height:1.4}
-#hitl-send{flex:none;font:600 15px/1.3 var(--sans);padding:0 22px;min-height:44px;border-radius:12px;border:0;background:var(--tint-fill);color:var(--on-tint);cursor:pointer;
-transition:background-color .15s ease-out}
-#hitl-send:hover{background:var(--tint-press)}
-#hitl-send:disabled{background:var(--fill);color:var(--ink2);cursor:progress}
+#hitl-send{flex:none;padding:0 22px}
+#hitl-send:disabled{cursor:progress}
 @media (max-width:640px){#hitl-open{right:16px;bottom:16px}#hitl-chat header{padding-left:16px}#hitl-log,#hitl-form{padding-left:16px;padding-right:16px}}

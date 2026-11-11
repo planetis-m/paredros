@@ -1,6 +1,6 @@
 # Review desk: design spec
 
-Status: frozen. Every change to the pages (`static/hitl.css`, `static/hitl.js`, and the page templates in `hitl/pages.nim`) follows this file. To change something this file does not allow, get the user's approval first and update this file in the same commit.
+Status: frozen. Every change to the pages (`static/hitl.css`, `static/hitl.js`, and `pages.py`'s `CHAT_HTML` and page builders) follows this file. To change something this file does not allow, get the user's approval first and update this file in the same commit.
 
 Baseline: commit bd249f5. That design stays. This file records it, answers the open questions and lists the few changes to make. Where this file says nothing, bd249f5's behaviour stands.
 
@@ -456,7 +456,7 @@ On the last item the row reads only "All items ›" and links to the index.
 | Strip row | `<answer>` / `#63  <question>` |
 | Strip copied | Copied. · Already sent. (sent meanwhile) |
 | Stale mark (decision and strip) | Out of date |
-| Stale mark tooltip / screen reader | The code changed. · New evidence. · The code changed; new evidence. |
+| Stale mark tooltip / screen reader | The code changed. · New evidence. · The code changed. New evidence. (as the server gives them) |
 | Copy failed | Copy failed. Press Ctrl+C. |
 | Strip sent | 1 already sent. / 3 already sent. |
 | Lane headings | Waiting for your decision · Needs another review · Nothing open |
@@ -490,16 +490,17 @@ On the last item the row reads only "All items ›" and links to the index.
 | Default question | What does this mean? |
 | Waiting | Thinking… |
 | Chat error | No answer. `<error>` |
+| Chat refusals | Not allowed: `<n>` (a closed disclosure under the answer, listing what the companion tried and its permissions refused) |
 
-Strings shortened at the user's request ("the wording is needlessly complex"): every message says what happened in the fewest plain words; where to paste is left out, since you know it. Strings removed: the long stale sentences ("The code changed after you chose.", "There is new evidence since you chose.", "… Look again and choose.", "… Open the report and choose again.", "Look again"; `drafts.staleFacts` keeps them for the CLI only), "3 or more decisions", "Ask the companion", "Companion", "Close the companion", "The companion failed:", "Next: #N", "No changes against the base.", "Copying failed. Copy it from the reports page.", "Copy it from above and paste it into the coordinator.", and the built-line form "nimony, read 2026-11-09 17:57". Removed later with their features: "Copy all", "Copied 3.", "Nothing to copy.", "Skipped 1 out of date.", "2 decisions left", "All decided", "2 more not shown." and "Ask about them".
+Strings shortened at the user's request ("the wording is needlessly complex"): every message says what happened in the fewest plain words; where to paste is left out, since you know it. Strings removed: the long stale sentences ("The code changed after you chose.", "There is new evidence since you chose.", "… Look again and choose.", "… Open the report and choose again.", "Look again"), "3 or more decisions", "Ask the companion", "Companion", "Close the companion", "The companion failed:", "Next: #N", "No changes against the base.", "Copying failed. Copy it from the reports page.", "Copy it from above and paste it into the coordinator.", and the built-line form "nimony, read 2026-11-09 17:57". Removed later with their features: "Copy all", "Copied 3.", "Nothing to copy.", "Skipped 1 out of date.", "2 decisions left", "All decided", "2 more not shown." and "Ask about them".
 
-The copied draft text is not a page string. It stays as `drafts.decide` writes it ("#63: question / My decision: answer. (d3, approved by me)") because the session and `delivered_at` rely on it.
+The copied draft text is not a page string. It stays as `drafts.decide` builds it ("#63: question / My decision: answer. (d3, approved by me)") because the session and `delivered_at` rely on it.
 
 ### 6.2 Brief shape (for answers 1 and 5.8)
 
 - Each list holds every entry that meets the bar, most important first. There is no cap and no `more` field; a section's count and the card's count are the list's length.
 - An open decision carries `options`, `recommended` (the index of the recommended option, or -1 for none) and `reason` (the one reason, without restating the option). The brief is written with `--json-schema`, so the page never guesses which option is meant.
-- `briefs.parse` keeps the summary and the five lists and drops anything else.
+- `brief.parse` keeps the summary and the five lists and drops anything else.
 
 ---
 
