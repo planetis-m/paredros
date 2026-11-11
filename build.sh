@@ -16,11 +16,14 @@ if [ "$1" = "--toolchain" ]; then
   cp -r "$NIMONY_SRC/bin" "$NIMONY_SRC/lib" "$NIMONY_SRC/src" "$NIMONY_SRC/doc" "$TC/"
   exit 0
 fi
-[ -n "$TOOLCHAIN" ] && TC=$TOOLCHAIN
+# Each toolchain and backend gets caches of its own: one toolchain's stdlib
+# cache is stale for another.
+cache=nimcache/$BACKEND
+[ -n "$TOOLCHAIN" ] && { TC=$TOOLCHAIN; cache=$cache-$(printf %s "$TC" | cksum | cut -d' ' -f1); }
 [ -x "$TC/bin/nimony" ] || { echo "no toolchain copy: run ./build.sh --toolchain" >&2; exit 1; }
 file=${1:-paredros.nim}; [ $# -gt 0 ] && shift
 name=$(basename "$file" .nim)
 out=${1:-bin/$name}; [ $# -gt 0 ] && [ "$1" != "--" ] && shift
 [ "$1" = "--" ] && shift
 mkdir -p "$(dirname "$out")"
-exec "$TC/bin/nimony" "$BACKEND" --stdcache:"$PWD/nimcache/$BACKEND/stdcache" --nimcache:"nimcache/$BACKEND/$name" -o:"$PWD/$out" "$@" "$file"
+exec "$TC/bin/nimony" "$BACKEND" --stdcache:"$PWD/$cache/stdcache" --nimcache:"$cache/$name" -o:"$PWD/$out" "$@" "$file"

@@ -299,7 +299,13 @@ proc git*(wd: string; args: openArray[string]; timeout = 20): Opt[string] =
            else: none[string]()
 
 let
-  gitWrite = re(r"\bgit\b[^\n;&|]*\b(?:commit|cherry-pick|revert|am|rebase|merge)\b",
+  # GAP: `\bgit\b[^\n;&|]*\b(?:...)\b` written without an assertion next to the
+  # repetition, because std/rex drops a match where an assertion holds and the
+  # repetition could still read on (fixed on nimony branch
+  # rex-assertion-after-repetition, not yet on master). Each `\b` there can
+  # only fall on a non-word character of the class, which is spelled out; the
+  # two match the same commands. Go back to the plain form once it is merged.
+  gitWrite = re(r"\bgit[^\w\n;&|](?:[^\n;&|]*[^\w\n;&|])?(?:commit|cherry-pick|revert|am|rebase|merge)\b",
                 {reExtended, reAllowEvil})
   cdTo = re"""(?:^|[;&|(]\s*)(?:cd|pushd)\s+[\"']?(/[^\s\"';&|)]+)"""
   gitC = re"""git\s+-C\s+[\"']?(/[^\s\"';&|)]+)"""
