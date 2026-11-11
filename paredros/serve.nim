@@ -383,24 +383,9 @@ proc acceptLoop(listener: sink HttpServer; s: Server) {.passive.} =
     if c.isClosed: break
     submit(delay(handle(c, s)), -1)
 
-proc openBrowser(url: string) =
-  ## Opens url in the browser: $BROWSER, else xdg-open. No browser: nothing
-  ## happens; the address is printed.
-  # GAP: $BROWSER is one command given the url, else xdg-open: no list of
-  # commands in $BROWSER, no %s, no known desktop browsers, because Nimony's
-  # standard library has no browser module (README, Limitations).
-  try:
-    let p = startProcess(getEnv("BROWSER", "xdg-open"), args = [url],
-                         options = {poUsePath, poParentStreams})
-    discard p.waitForExit()
-    p.close()
-  except:
-    discard
-
 proc run*(s: Server) =
   ## Serves the pages until the process is stopped: listens on s.port (0: a
-  ## port the system picks, written back to s.port), prints the address and
-  ## opens it in the browser.
+  ## port the system picks, written back to s.port) and prints the address.
   initIoRing()
   # GAP: listens on every interface, not on 127.0.0.1 only (the Host check
   # and the token still hold), because std/httpserver's listenHttp takes no
@@ -413,6 +398,5 @@ proc run*(s: Server) =
   let url = "http://127.0.0.1:" & $s.port & "/"
   echo "serving " & url & "  (Ctrl+C to stop)"
   flushFile(stdout)   # whoever waits for the address gets it now
-  openBrowser(url)
   submit(delay(acceptLoop(listener, s)), 0)
   while true: sleep(1000)   # the pool's threads serve the connections

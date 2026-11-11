@@ -17,8 +17,11 @@ no extra work. You still talk to the session as before; paredros gives you:
 
 ## Install
 
-paredros needs git and the `claude` CLI. Release binaries are built with
-Nimony's native backend: one file, no runtime libraries.
+paredros needs git and the `claude` CLI. A release is one file. On
+linux/amd64 and windows/amd64 it is built with Nimony's native backend and
+needs no runtime libraries; on linux/arm64 and macos/arm64 it is built with
+`nimony c` and links against the system's libc, because Nimony's standard
+library has no libc-free threads there yet.
 
 Linux and macOS:
 
@@ -73,8 +76,11 @@ paredros serve            # pages, decisions and a chat: select text, "Ask about
 | `--jobs=N` | `brief`: how many briefs may be written at once (default 4; see Limitations) |
 | `--port=N` | `serve`: the port (default 8765; 0: one the system picks) |
 
-`serve` builds the pages under `~/.local/state/paredros/review/<session>/`; they
-also open as plain files, read only and without the chat. An error is one
+`serve` builds the pages under `<data>/paredros/review/<session>/` and prints
+the address to open; the pages also open as plain files, read only and
+without the chat. `<data>` is the user's data directory: `~/.local/share`
+(or `$XDG_DATA_HOME`) on Linux, `~/Library/Application Support` on macOS,
+`%APPDATA%` on Windows. An error is one
 line, `paredros: <message>`, and exit status 1.
 
 ## How it works with one agent or many
@@ -122,7 +128,7 @@ turns, agents' reports and code. Both model runs get only the Read, Grep and
 Glob tools (`--tools`), no MCP servers (`--strict-mcp-config`), and answer in
 a fixed JSON schema (`--json-schema`). A brief lists every entry that meets
 its bar; nothing is capped. Briefs and the ledger are cached under
-`~/.local/state/paredros/briefs/<session>/`; a brief is rewritten only when its
+`<data>/paredros/briefs/<session>/`; a brief is rewritten only when its
 inputs change. `--model=` picks the model (default opus).
 
 ## Config
@@ -275,9 +281,6 @@ Server:
   304; a target that climbs above the pages (`/../x`) is a 400, not a 404.
   std/httpserver has no error pages and no file handler, and refuses such a
   target itself.
-- `$BROWSER` is one command given the URL, else `xdg-open`: no list of
-  commands, no `%s`, no known desktop browsers, because the standard library
-  has no browser module.
 
 Model runs and child processes:
 
@@ -285,6 +288,8 @@ Model runs and child processes:
   started at once from std/parfor's `||` wait on each other for ever, because
   std/osproc's children inherit each other's pipes on Linux
   (bug-reports/105).
+- A command that times out is killed, but not the processes it started,
+  because std/osproc kills one process.
 - A child that keeps stdout or stderr open is not stopped at its timeout,
   only once it closes them, and a child that fills its stderr pipe while
   stdout is read waits for ever, because std/osproc has no `communicate`

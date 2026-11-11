@@ -18,7 +18,6 @@ proc start(): (Process, string) =
   ## `paredros serve --port=0` on the coordinator fixture: the server and the
   ## line it printed first.
   try:
-    putEnv("BROWSER", "true")   # the browser that opens nothing
     let bin = $paths.getCurrentDir() & "/bin/paredros"
     let p = startProcess(bin, args = ["--session=" & Sid.substr(0, 7), "serve", "--port=0"],
                          options = {poStdErrToStdOut})

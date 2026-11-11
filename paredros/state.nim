@@ -1,13 +1,19 @@
 ## paredros's own files: where each session's state lives, how files are written,
 ## the companion forks, and the few text helpers every layer shares.
 
-import std/[syncio, strutils, os, paths, dirs, files, envvars, json, unicode, rex]
+import std/[syncio, strutils, os, paths, dirs, files, appdirs, json, unicode, rex]
 import std/crypto/sysrand
 
+proc home*(): string =
+  ## The user's home directory, without a trailing separator.
+  $(appdirs.getHomeDir() / path("."))
+
 proc outDir*(): string =
-  ## paredros's state directory: $XDG_STATE_HOME/paredros, else ~/.local/state/paredros.
+  ## paredros's state directory: paredros in the user's data directory
+  ## (std/appdirs: ~/.local/share or $XDG_DATA_HOME on Linux, ~/Library/
+  ## Application Support on macOS, %APPDATA% on Windows).
   # Read on every call, not once: the tests point it at a temp directory.
-  getEnv("XDG_STATE_HOME", getEnv("HOME") & "/.local/state") & "/paredros"
+  $(appdirs.getDataDir() / path("paredros"))
 
 proc state*(kind, sid: string): string =
   ## The one place a session's state folder is named: $STATE/<kind>/<first 8

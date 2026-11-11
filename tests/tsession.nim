@@ -1,25 +1,18 @@
 ## Child processes and the transcript reading the later layers build on, on
 ## the shared fixtures.
 
-import std/[strutils, os, assertions, opt, result]
-import std/posix/posix
+import std/[strutils, os, assertions, monotimes, times, opt, result]
 import fixtures
 import ../paredros/[state, session]
 
 setUp()
 
-block a_timeout_leaves_no_child_behind:
-  let pidfile = tmp() & "/grandchild.pid"
-  # the child starts a child of its own and waits
-  let r = run(["sh", "-c", "sleep 30 & echo $! > " & pidfile & "; wait"], 1)
+block a_timeout_kills_the_child:
+  # the child closes its output and waits: only the timeout ends it
+  let started = getMonoTime()
+  let r = run(["sh", "-c", "exec >/dev/null 2>&1; exec sleep 30"], 1)
   assert r.isErr and "timed out" in r.error(""), "a timeout is an error"
-  let pid = try: parseInt(readText(pidfile).strip) except: -1
-  var gone = false
-  for i in 0..<50:   # killed with its group, then reaped by init
-    if not gone:
-      gone = posix.kill(Pid(pid), 0) != 0
-      if not gone: os.sleep(50)
-  assert gone, "process " & $pid & " outlived the timeout"
+  assert getMonoTime() - started < initDuration(seconds = 10), "killed at the timeout"
   let ran = run(["sh", "-c", "cat; echo err >&2"], 5, input = "in")
   assert ran.isOk and ran.get(Completed()).output == "in", "input in, output out"
   assert ran.get(Completed()).errors == "err\n", "stderr apart"

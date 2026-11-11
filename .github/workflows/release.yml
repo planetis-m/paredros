@@ -1,13 +1,18 @@
 name: release
 
-# Builds paredros with Nimony's native backend (`nimony n`: arkham + nifasm, no C
-# compiler or system linker involved) on one native runner per target, and on a
+# Builds paredros on one native runner per target, and on a
 # `v*` tag publishes the archives, SHA256SUMS and the install scripts as a
 # GitHub Release. `workflow_dispatch` builds and tests without releasing.
 #
 # Targets are the ones nativenif can emit for: linux/amd64, linux/arm64,
 # macosx/arm64 and windows/amd64. There is no macOS x86_64 or Windows ARM64
 # backend, so those are not built.
+#
+# Backend per target (`backend` in the matrix): linux/amd64 and windows/amd64
+# use the native backend (`nimony n`: arkham + nifasm, no C compiler or system
+# linker), which gives one static, libc-free file. linux/arm64 and macos/arm64
+# use `nimony c`, because std/rawthreads has no libc-free threads there yet
+# (`serve` needs threads); those link against the system's libc.
 
 on:
   push:
@@ -26,10 +31,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { runner: ubuntu-latest,    os: linux,   arch: amd64, cpu: amd64, ext: tar.gz }
-          - { runner: ubuntu-26.04-arm, os: linux,   arch: arm64, cpu: arm64, ext: tar.gz }
-          - { runner: macos-latest,     os: macos,   arch: arm64, cpu: arm64, ext: tar.gz }
-          - { runner: windows-latest,   os: windows, arch: amd64, cpu: amd64, ext: zip }
+          - { runner: ubuntu-latest,    os: linux,   arch: amd64, cpu: amd64, ext: tar.gz, backend: n }
+          - { runner: ubuntu-26.04-arm, os: linux,   arch: arm64, cpu: arm64, ext: tar.gz, backend: c }
+          - { runner: macos-latest,     os: macos,   arch: arm64, cpu: arm64, ext: tar.gz, backend: c }
+          - { runner: windows-latest,   os: windows, arch: amd64, cpu: amd64, ext: zip,    backend: n }
     runs-on: ${{ matrix.runner }}
     defaults:
       run:
@@ -85,9 +90,9 @@ jobs:
         run: |
           exe=""
           if [ "${{ runner.os }}" = Windows ]; then exe=.exe; fi
-          ../nimony/bin/nimony n -d:release -o:"dist/paredros$exe" paredros.nim
-          # On macOS nifasm signs its output ad hoc (arm64 macOS refuses
-          # unsigned code), so the smoke test below also checks the signature.
+          ../nimony/bin/nimony ${{ matrix.backend }} -d:release -o:"dist/paredros$exe" paredros.nim
+          # arm64 macOS refuses unsigned code; the linker (nifasm, or the system
+          # linker for `nimony c`) signs ad hoc, and the smoke test checks it.
           ./dist/paredros$exe -h
 
       - name: Package

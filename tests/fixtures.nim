@@ -3,7 +3,7 @@
 ## first amended, and the human's own commit in the same checkout). Everything
 ## lives in one temp directory; setUp points paredros's state and Claude
 ## Code's config there before anything runs, so no test touches the real
-## ~/.local/state or ~/.claude.
+## data directory or ~/.claude.
 
 import std/[syncio, strutils, os, paths, dirs, tempfiles, envvars, json, opt, result]
 import ../paredros/[state, session, config, brief, work]
@@ -196,7 +196,7 @@ proc setUp*() =
     quit "no temp dir"
   try:
     putEnv("CLAUDE_CONFIG_DIR", root & "/claude")
-    putEnv("XDG_STATE_HOME", root & "/state")  # briefs and drafts go here
+    putEnv("XDG_DATA_HOME", root & "/state")  # briefs and drafts go here
     putEnv("PAREDROS_NO_CLIPBOARD", "1")           # never touch the user's clipboard
   except:
     quit "cannot set the environment"

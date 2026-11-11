@@ -18,7 +18,7 @@ proc paredros(args: openArray[string]): Completed =
 
 block the_script_passes_its_config_on:
   # run as a program, paredros must hand --config to the modules that use it
-  try: putEnv("XDG_STATE_HOME", tmp() & "/script-state") except: quit "cannot set the environment"
+  try: putEnv("XDG_DATA_HOME", tmp() & "/script-state") except: quit "cannot set the environment"
   let log = fake([("T", @["C1", "C2", "T1", "T2"])])
   let r = paredros(["--session=" & Solo.substr(0, 7), "--config=" & example(), "brief"])
   assert r.code == 0, r.output & r.errors
@@ -29,7 +29,7 @@ block the_script_passes_its_config_on:
   assert r.output == "#1: new item: T\n#1: written\n", "what it did: " & r.output
   assert dirExists(tmp() & "/script-state/paredros/briefs/" & Solo.substr(0, 7)),
     "the state it was given"
-  try: putEnv("XDG_STATE_HOME", tmp() & "/state") except: quit "cannot set the environment"
+  try: putEnv("XDG_DATA_HOME", tmp() & "/state") except: quit "cannot set the environment"
 
 block errors_end_paredros_with_their_message:
   var r = paredros(["--session=nomatch", "brief"])

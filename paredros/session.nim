@@ -7,13 +7,12 @@
 
 import std/[syncio, strutils, os, paths, dirs, envvars, algorithm, tables,
             json, rex, osproc, streams, monotimes, times, opt, result]
-import std/posix/posix
 import state
 
 proc configDir(): string =
   ## Claude Code's config directory: $CLAUDE_CONFIG_DIR, else ~/.claude.
   # Read on every call, not once: the tests point it at a temp directory.
-  getEnv("CLAUDE_CONFIG_DIR", getEnv("HOME") & "/.claude")
+  getEnv("CLAUDE_CONFIG_DIR", home() & "/.claude")
 
 proc projectsDir*(): string =
   ## Where Claude Code keeps the transcripts, one folder per project.
@@ -255,22 +254,18 @@ type Completed* = object
 
 proc run*(cmd: openArray[string]; timeout: int; input = ""; cwd = ""): Result[Completed, string] =
   ## The one way paredros runs a child process (git, claude): it gets `input` on
-  ## stdin, and its output comes back as text. The child starts in its own
-  ## process group; when it outlives `timeout` seconds the whole group is
-  ## killed, so a `claude` or `git` that started children of its own leaves
-  ## none behind, and the error says it timed out. The error also says when the
+  ## stdin, and its output comes back as text. When it outlives `timeout`
+  ## seconds it is killed (std/osproc's kill: the child only, not children it
+  ## started) and the error says it timed out. The error also says when the
   ## child could not be started or read.
   let deadline = getMonoTime() + initDuration(seconds = timeout)
   var ran = Completed(code: -1, output: "", errors: "")
-  var pid = 0
   var timedOut = false
   try:
-    # poDaemon: the child calls setpgid(0, 0), a process group of its own.
     # GAP: a program that cannot be found or started is a run that exits 127,
     # not an error, because std/osproc reports a failed execve that way.
     let p = startProcess(cmd[0], workingDir = cwd, args = cmd.toOpenArray(1, cmd.high),
-                         options = {poUsePath, poDaemon})
-    pid = p.processID
+                         options = {poUsePath})
     # GAP: a child that keeps its output open is not stopped at the timeout,
     # only once it closes it, and one that fills its stderr pipe while paredros
     # waits on stdout waits for ever, because std/osproc has no `communicate`
@@ -283,11 +278,12 @@ proc run*(cmd: openArray[string]; timeout: int; input = ""; cwd = ""): Result[Co
     let left = (deadline - getMonoTime()).inMilliseconds
     ran.code = p.waitForExit(int(max(left, 0'i64)))
     timedOut = deadline <= getMonoTime()
+    if timedOut:
+      try: p.kill() except: discard   # already gone: nothing to kill
     p.close()
   except:
     return err[Completed, string]("cannot run " & cmd[0])
   if timedOut:
-    discard posix.kill(Pid(-pid), SIGKILL)   # the whole group
     result = err[Completed, string](cmd[0] & " timed out after " & $timeout & " s")
   else:
     result = ok[Completed, string](ran)

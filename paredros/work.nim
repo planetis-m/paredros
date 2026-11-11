@@ -4,7 +4,7 @@
 ## ledger and the briefs. Read only: transcripts and git, through session.nim.
 
 import std/[strutils, parseutils, os, envvars, tables, sets, algorithm, rex, times, opt, result]
-import session, config, brief
+import state, session, config, brief
 
 const EmptyTree = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
 
@@ -173,7 +173,7 @@ proc sources*(spath: string): Sources =
     transcripts.add Transcript(owner: some(key), recs: a.recs)
   var commits = sessionCommits(transcripts)
   for c in mitems(commits): c.key = "commit:" & c.sha
-  result = Sources(recs: recs, cwd: sessionCwd(recs).get(getEnv("HOME")), turns: turns(recs),
+  result = Sources(recs: recs, cwd: sessionCwd(recs).get(home()), turns: turns(recs),
                    agents: workers, commits: commits)
 
 proc isParent(c: Commit; others: seq[Commit]): bool =

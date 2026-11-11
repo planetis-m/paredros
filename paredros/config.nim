@@ -2,6 +2,7 @@
 ## and passed down; every key may be left out.
 
 import std/[syncio, strutils, os, envvars, json, opt, result, algorithm]
+import state
 
 type
   Compare* = object
@@ -78,4 +79,4 @@ proc load*(cwd: string; path = ""): Result[Config, string] =
 
 proc expand*(text, scratch: string): string =
   ## A compare text with {scratch} and {home} filled in.
-  text.replace("{scratch}", scratch).replace("{home}", getEnv("HOME"))
+  text.replace("{scratch}", scratch).replace("{home}", home())

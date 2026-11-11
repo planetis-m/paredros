@@ -4,7 +4,7 @@ Status: frozen. Every change to the pages (`static/paredros.css`, `static/paredr
 
 Baseline: commit bd249f5. That design stays. This file records it, answers the open questions and lists the few changes to make. Where this file says nothing, bd249f5's behaviour stands.
 
-Note: the pages in `~/.local/state/paredros/review/26c3c765/` were built by the rejected implementation (`main.index`, `p.fresh`, `.save-btn`). Don't use them as a reference.
+Note: the pages in `<data>/paredros/review/26c3c765/` were built by the rejected implementation (`main.index`, `p.fresh`, `.save-btn`). Don't use them as a reference.
 
 ---
 

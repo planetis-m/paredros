@@ -42,7 +42,7 @@ These were decided with the user. Reopening one needs the user's approval.
 | Model calls | All through `claude -p` on the user's subscription. No other vendor or API: decision APIs (OpenAI's Decisions API, TypeSafe's Jev) were evaluated and rejected because the tasks are generative, need tool use and run rarely. |
 | Structured output | Approved next step: `--json-schema` for the split and the brief, replacing regex JSON extraction. |
 | Server | A minimal std/httpserver server with a Host check, a per-run token and an Origin check, used only for acting features (companion chat, saving, re-checking, copying). Static file mode stays for reading. It should bind 127.0.0.1 only; it cannot yet (6.3). |
-| State | Plain files under `$XDG_STATE_HOME/paredros` (default `~/.local/state/paredros/`). |
+| State | Plain files under `paredros` in the user's data directory (std/appdirs `getDataDir()`: `~/.local/share` or `$XDG_DATA_HOME` on Linux, `~/Library/Application Support` on macOS, `%APPDATA%` on Windows). |
 | Config | Per project, JSON (`.paredros.json`), read with std/json. |
 | Agents | Never burdened (section 1). |
 | Precompute | Everything that can be computed ahead is computed ahead (briefs, spec lines, recommendations). The companion does only live work. |
@@ -63,7 +63,7 @@ are no exception types.
 | Module | Responsibility |
 |---|---|
 | `paredros/state.nim` | paredros's own files: the state folder per session (`state()`), atomic writes, the list of companion forks, `companion.md` and `static/` built into the binary (`companionPrompt`, `pageAssets`), and the text helpers every layer shares (`collapse`, `quote` for JSON text, `subGroup`). |
-| `paredros/session.nim` | What paredros reads, read only: Claude Code's transcripts (the only module that knows their format: records, tool calls and their results, typed messages, agents, sessions), the one way to run a child process (`run()`: its own process group, killed whole on timeout), the git runner (`git()`, the only one), and the git commands a transcript ran that may make commits (`gitWrites`). |
+| `paredros/session.nim` | What paredros reads, read only: Claude Code's transcripts (the only module that knows their format: records, tool calls and their results, typed messages, agents, sessions), the one way to run a child process (`run()`: killed on timeout, the child only), the git runner (`git()`, the only one), and the git commands a transcript ran that may make commits (`gitWrites`). |
 | `paredros/config.nim` | The project's config (`load(cwd, path)`): a value, loaded once by the CLI and passed down; code given none loads the session's default. |
 | `paredros/render.nim` | All HTML: `tag()` escapes text and attribute values unless a value is markup it built (`Html`, a distinct string) or a constant icon (`raw`); `inline` and `markdown` render a declared Markdown subset, and anything outside it stays as written; `diff` renders a unified diff by its hunk counts, names renames, mode changes and binary files, and past 600,000 characters shows whole files only and says how many it left out. No I/O. |
 | `paredros/brief.nim` | Model work that can be precomputed: the split (sources into ledger items) and one brief per item, both cached; the prompts and schemas; the decision id. Owns the ledger and brief files, and declares the material's types (`Turn`, `Worker`, `Commit`, `Sources`, `WorkItem`, `Work`). |
@@ -110,7 +110,7 @@ Data flow:
 ## 4. Data model
 
 `<s>` is the first 8 characters of the session id. `$STATE` is
-`$XDG_STATE_HOME/paredros`. All JSON files are written atomically (temp file,
+`<data>/paredros` (section 2, State). All JSON files are written atomically (temp file,
 then rename).
 
 ### 4.1 Sources and their keys
