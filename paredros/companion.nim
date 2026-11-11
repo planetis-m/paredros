@@ -55,10 +55,7 @@ proc setup*(sid, spath: string;
     compare = "\n" & cmp.label & ", when the human asks for it or a fact needs it:\n" &
               expand(cmp.prompt, scratch) & "\n"
     for a in allow: compare.add "You may run `" & a & " ...`, with files in " & scratch & " only.\n"
-  let md = appDir() & "/companion.md"
-  let text = try: readFile(md) except: ""
-  if text.len == 0: return err[(string, seq[string]), string]("cannot read " & md)
-  let prompt = text.multiReplace([("{session}", sid), ("{transcripts}", parentDir(spath)),
+  let prompt = companionPrompt.multiReplace([("{session}", sid), ("{transcripts}", parentDir(spath)),
     ("{briefs}", briefs), ("{scratch}", scratch), ("{compare}", compare),
     ("{spec}", if c.spec.len > 0: "the spec (" & c.spec & ")" else: "the project's docs")])
   # `//` marks an absolute path in a permission rule; a single `/` is relative

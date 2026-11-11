@@ -1,0 +1,161 @@
+name: release
+
+# Builds paredros with Nimony's native backend (`nimony n`: arkham + nifasm, no C
+# compiler or system linker involved) on one native runner per target, and on a
+# `v*` tag publishes the archives, SHA256SUMS and the install scripts as a
+# GitHub Release. `workflow_dispatch` builds and tests without releasing.
+#
+# Targets are the ones nativenif can emit for: linux/amd64, linux/arm64,
+# macosx/arm64 and windows/amd64. There is no macOS x86_64 or Windows ARM64
+# backend, so those are not built.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+env:
+  NIMONY_REPO: https://github.com/nim-lang/nimony
+  # Must be a commit on nim-lang/nimony master. `git fetch <sha>` at this depth
+  # only succeeds while GitHub still advertises the commit.
+  NIMONY_COMMIT: fd785558eac272e058d9272e996691428dbf16af
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { runner: ubuntu-latest,    os: linux,   arch: amd64, cpu: amd64, ext: tar.gz }
+          - { runner: ubuntu-26.04-arm, os: linux,   arch: arm64, cpu: arm64, ext: tar.gz }
+          - { runner: macos-latest,     os: macos,   arch: arm64, cpu: arm64, ext: tar.gz }
+          - { runner: windows-latest,   os: windows, arch: amd64, cpu: amd64, ext: zip }
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      # Before any checkout: slurped assets must keep their bytes.
+      - run: git config --global core.autocrlf false
+
+      - uses: actions/checkout@v7
+        with:
+          path: app
+
+      - name: Clone nimony
+        run: |
+          git init -q nimony
+          git -C nimony fetch -q --depth 1 "$NIMONY_REPO" "$NIMONY_COMMIT"
+          git -C nimony checkout -q FETCH_HEAD
+
+      - name: Restore the nimony toolchain
+        id: toolchain
+        uses: actions/cache@v6
+        with:
+          path: nimony/bin
+          key: nimony-${{ matrix.os }}-${{ matrix.arch }}-${{ env.NIMONY_COMMIT }}
+
+      - name: Install MinGW (Windows)
+        # Only for building the toolchain with Nim; `nimony n` itself needs no C
+        # compiler.
+        if: runner.os == 'Windows' && steps.toolchain.outputs.cache-hit != 'true'
+        run: |
+          curl -fsSL -o mingw.7z "https://github.com/brechtsanders/winlibs_mingw/releases/download/16.2.0posix-23.1.3-14.0.0-msvcrt-r3/winlibs-x86_64-posix-seh-gcc-16.2.0-llvm-23.1.3-mingw-w64msvcrt-14.0.0-r3.7z"
+          7z x -y mingw.7z -o"$RUNNER_TEMP" > /dev/null
+          echo "$RUNNER_TEMP/mingw64/bin" >> "$GITHUB_PATH"
+
+      - name: Install Nim
+        if: steps.toolchain.outputs.cache-hit != 'true'
+        uses: jiro4989/setup-nim-action@v2
+        with:
+          nim-version: 2.4.x
+          repo-token: ${{ github.token }}
+
+      - name: Build the nimony toolchain
+        if: steps.toolchain.outputs.cache-hit != 'true'
+        working-directory: nimony
+        # `build all` skips arkham + nifasm while ../nativenif is missing;
+        # asking for arkham by name clones it at the pin first.
+        run: |
+          nim c -r src/hastur/hastur --release build arkham
+          bin/hastur --release build all
+
+      - name: Build paredros
+        working-directory: app
+        run: |
+          exe=""
+          if [ "${{ runner.os }}" = Windows ]; then exe=.exe; fi
+          ../nimony/bin/nimony n -d:release -o:"dist/paredros$exe" paredros.nim
+          # On macOS nifasm signs its output ad hoc (arm64 macOS refuses
+          # unsigned code), so the smoke test below also checks the signature.
+          ./dist/paredros$exe -h
+
+      - name: Package
+        id: package
+        working-directory: app
+        run: |
+          name="paredros-${{ matrix.os }}-${{ matrix.arch }}.${{ matrix.ext }}"
+          cp README.md dist/
+          if [ "${{ matrix.ext }}" = zip ]; then
+            (cd dist && 7z a -tzip "../$name" paredros.exe README.md > /dev/null)
+          else
+            COPYFILE_DISABLE=1 tar -C dist -czf "$name" paredros README.md
+          fi
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.package.outputs.name }}
+          path: app/${{ steps.package.outputs.name }}
+          if-no-files-found: error
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp install.sh install.ps1 dist/
+          cd dist
+          sha256sum paredros-* > SHA256SUMS
+          cat SHA256SUMS
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
+            --title "$GITHUB_REF_NAME" --generate-notes \
+            paredros-* SHA256SUMS install.sh install.ps1
+
+  install-test:
+    # Runs the published scripts the way the README tells users to.
+    needs: release
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-latest, ubuntu-26.04-arm, macos-latest, windows-latest]
+    runs-on: ${{ matrix.runner }}
+    env:
+      PAREDROS_VERSION: ${{ github.ref_name }}
+    steps:
+      - name: Install with install.sh
+        if: runner.os != 'Windows'
+        run: |
+          curl -fsSL "https://github.com/${{ github.repository }}/releases/download/$PAREDROS_VERSION/install.sh" | sh
+          "$HOME/.local/bin/paredros" -h
+
+      - name: Install with install.ps1
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          irm "https://github.com/${{ github.repository }}/releases/download/$env:PAREDROS_VERSION/install.ps1" | iex
+          & "$env:LOCALAPPDATA\Programs\paredros\paredros.exe" -h
+          if ($LASTEXITCODE -ne 0) { exit 1 }

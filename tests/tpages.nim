@@ -28,7 +28,7 @@ proc between(s, a, b: string): string =
 
 block the_page_script_parses:
   if findExe("node").len > 0:
-    let r = run(["node", "--check", appDir() & "/static/paredros.js"], 60)
+    let r = run(["node", "--check", repo() & "/static/paredros.js"], 60)
     assert r.isOk and r.get(Completed()).code == 0, r.get(Completed()).errors
   else:
     echo "skipped the_page_script_parses: node is not installed"
@@ -63,7 +63,7 @@ block build_shows_brief_code_and_sources:
   assert "Could cause more bugs" notin index, "no other counts"
   assert "Copy all" notin index
   assert "<span class=\"mark\">Suggested</span><span class=\"why\">Nim 2 allows it.</span>" in page
-  assert readText(dest & "/paredros.js") == readText(appDir() & "/static/paredros.js")
+  assert readText(dest & "/paredros.js") == readText(repo() & "/static/paredros.js")
   assert "<link rel=\"stylesheet\" href=\"paredros.css\">" in page
   assert "<p class=\"src\">From fixer</p>" in page, "no clock times"
   let qid = "q1-" & did   # the answers are one radio group

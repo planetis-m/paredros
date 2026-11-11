@@ -103,6 +103,10 @@ proc spathOf*(sid: string): string =
     discard
   if result.len == 0: quit "no transcript for " & sid
 
+proc repo*(): string =
+  ## The repository; tests/run runs the tests from it.
+  (try: $paths.getCurrentDir() except: ".")
+
 proc example*(): string =
   ## examples/nimony.paredros.json; tests/run runs the tests from the repository.
   (try: $paths.getCurrentDir() except: ".") & "/examples/nimony.paredros.json"

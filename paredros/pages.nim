@@ -402,12 +402,9 @@ proc build*(spath, dest: string; cfg = none[Config]()): Result[string, string] =
       doing = "write " & dest & "/i" & $r.n & ".html"
       writeAtomic(dest & "/i" & $r.n & ".html", $itemPage(r, d, prev, next, titles))
     # the pages' CSS and JS, beside them so file mode works too
-    let assets = appDir() & "/static"
-    doing = "read " & assets
-    for (kind, f) in walkDir(path(assets)):
-      if kind == pcFile:
-        doing = "copy " & $f
-        writeAtomic(dest & "/" & extractFilename($f), readFile($f))
+    for (name, text) in pageAssets:
+      doing = "write " & dest & "/" & name
+      writeAtomic(dest & "/" & name, text)
     # {item: tip} is a Table, which std/json's toJson cannot write
     # (bug-reports/112-json-tojson-table-field-fails-in-json-nim): the object
     # is joined from its members, a space after each `:` and `,`

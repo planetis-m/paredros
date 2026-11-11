@@ -1,12 +1,16 @@
 #!/bin/sh
 # tests/run [NAME...]: build paredros, then build and run each tests/t*.nim (or the
 # named ones), in debug and in release. Run from anywhere. paredros.nim and
-# tests/fakeclaude.nim are built only when they exist.
+# tests/fakeclaude.nim are built only when they exist. With BACKEND=n (see
+# build.sh) paredros is built libc-free, as released; the test programs link
+# with libc (-d:useLibc) because the fixtures' putEnv needs setenv, which a
+# libc-free executable cannot bind.
 set -e
 cd "$(dirname "$0")/.."
 names=${*:-$(ls tests/t*.nim | sed 's|tests/||; s|\.nim$||')}
+tflags=""; [ "${BACKEND:-c}" = n ] && tflags="-d:useLibc"
 [ ! -f tests/fakeclaude.nim ] ||
-./build.sh tests/fakeclaude.nim nimcache/tests/bin/claude > nimcache/build-fakeclaude.log 2>&1 ||
+./build.sh tests/fakeclaude.nim nimcache/tests/bin/claude -- $tflags > nimcache/build-fakeclaude.log 2>&1 ||
   { grep -v '^\[' nimcache/build-fakeclaude.log; exit 1; }
 fails=0
 for mode in debug release; do
@@ -14,7 +18,7 @@ for mode in debug release; do
   [ ! -f paredros.nim ] ||
   ./build.sh paredros.nim bin/paredros -- $flags > nimcache/build-paredros.log 2>&1 || { cat nimcache/build-paredros.log; exit 1; }
   for t in $names; do
-    if ./build.sh tests/$t.nim nimcache/tests/$mode/$t -- $flags > nimcache/build-$t.log 2>&1 &&
+    if ./build.sh tests/$t.nim nimcache/tests/$mode/$t -- $flags $tflags > nimcache/build-$t.log 2>&1 &&
        nimcache/tests/$mode/$t; then
       echo "ok    $mode $t"
     else

@@ -17,20 +17,40 @@ no extra work. You still talk to the session as before; paredros gives you:
 
 ## Install
 
-Needs a Nimony checkout built in `~/Projects/nimony` (or `$NIMONY_SRC`), git
-and the `claude` CLI. paredros uses Nimony's standard library only. Build once,
-then add an alias:
+paredros needs git and the `claude` CLI. Release binaries are built with
+Nimony's native backend: one file, no runtime libraries.
+
+Linux and macOS:
 
 ```sh
-git clone <this repository> ~/Projects/paredros
-cd ~/Projects/paredros
-./build.sh --toolchain     # a private copy of the Nimony toolchain (see build.sh)
-./build.sh                 # bin/paredros
-alias paredros=~/Projects/paredros/bin/paredros
+curl -fsSL https://github.com/planetis-m/paredros/releases/latest/download/install.sh | sh
 ```
 
-`bin/paredros` finds `companion.md` and `static/` in the repository it was built
-in, so leave it there.
+Windows (PowerShell):
+
+```powershell
+irm https://github.com/planetis-m/paredros/releases/latest/download/install.ps1 | iex
+```
+
+Targets: linux/amd64, linux/arm64, macos/arm64, windows/amd64. The script
+checks the archive against `SHA256SUMS` and installs into `~/.local/bin`
+(Windows: `%LOCALAPPDATA%\Programs\paredros`, added to your PATH).
+`PAREDROS_VERSION` picks a release tag, `PAREDROS_INSTALL_DIR` the folder.
+
+### From source
+
+Needs a Nimony checkout built in `~/Projects/nimony` (or `$NIMONY_SRC`):
+
+```sh
+git clone https://github.com/planetis-m/paredros ~/Projects/paredros
+cd ~/Projects/paredros
+./build.sh --toolchain     # a private copy of the Nimony toolchain (see build.sh)
+./build.sh                 # bin/paredros (BACKEND=n: the native backend)
+```
+
+`companion.md` and `static/` are built into the binary, so it can live anywhere.
+
+## Usage
 
 `paredros` alone prints its help. An option takes its value after `=` or `:`
 (`--port=8000`), not as the next word. `--session=` picks the session: an id

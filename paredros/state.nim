@@ -21,12 +21,12 @@ proc writeAtomic*(p, text: string) {.raises.} =
   writeFile(tmp, text)
   moveFile(path(tmp), path(p))
 
-proc appDir*(): string =
-  ## The repository the binary was built in: the nearest directory above it
-  ## that holds companion.md (and static/); "" when there is none.
-  result = ""
-  for dir in parentDirs(getAppDir()):
-    if result.len == 0 and fileExists(dir & "/companion.md"): result = dir
+const
+  companionPrompt* = slurp("../companion.md")
+    ## The companion's system prompt, built into the binary.
+  pageAssets* = [("paredros.css", slurp("../static/paredros.css")),
+                 ("paredros.js", slurp("../static/paredros.js"))]
+    ## The pages' CSS and JS, built into the binary: (file name, contents).
 
 # ---------------------------------------------------------------------- text
 

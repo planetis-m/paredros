@@ -62,7 +62,7 @@ are no exception types.
 
 | Module | Responsibility |
 |---|---|
-| `paredros/state.nim` | paredros's own files: the state folder per session (`state()`), atomic writes, the list of companion forks, the repository the binary was built in (`appDir`, for `companion.md` and `static/`), and the text helpers every layer shares (`collapse`, `quote` for JSON text, `subGroup`). |
+| `paredros/state.nim` | paredros's own files: the state folder per session (`state()`), atomic writes, the list of companion forks, `companion.md` and `static/` built into the binary (`companionPrompt`, `pageAssets`), and the text helpers every layer shares (`collapse`, `quote` for JSON text, `subGroup`). |
 | `paredros/session.nim` | What paredros reads, read only: Claude Code's transcripts (the only module that knows their format: records, tool calls and their results, typed messages, agents, sessions), the one way to run a child process (`run()`: its own process group, killed whole on timeout), the git runner (`git()`, the only one), and the git commands a transcript ran that may make commits (`gitWrites`). |
 | `paredros/config.nim` | The project's config (`load(cwd, path)`): a value, loaded once by the CLI and passed down; code given none loads the session's default. |
 | `paredros/render.nim` | All HTML: `tag()` escapes text and attribute values unless a value is markup it built (`Html`, a distinct string) or a constant icon (`raw`); `inline` and `markdown` render a declared Markdown subset, and anything outside it stays as written; `diff` renders a unified diff by its hunk counts, names renames, mode changes and binary files, and past 600,000 characters shows whole files only and says how many it left out. No I/O. |
