@@ -1,6 +1,6 @@
 ## Work items and their decision briefs, written by read-only model runs.
 ##
-## `hitl brief` first sorts the session's new material (turns, agents,
+## `paredros brief` first sorts the session's new material (turns, agents,
 ## commits) into work items, then writes one short, sourced brief per item:
 ## decisions made and why, spec conflicts, what needs another review, what
 ## could cause more bugs, and open decisions. Every item names its source.

@@ -1,11 +1,11 @@
-## Work items (test_hitl.py WorkItemTests): sources, commit discovery, current
+## Work items (test_paredros.py WorkItemTests): sources, commit discovery, current
 ## code, and the ledger across runs, with the fake `claude` answering. The
 ## parts of these tests that build pages or save decisions come with those
 ## layers.
 
 import std/[syncio, strutils, paths, dirs, assertions, opt, result, tables]
 import fixtures
-import ../hitl/[session, brief, work]
+import ../paredros/[session, brief, work]
 
 setUp()
 

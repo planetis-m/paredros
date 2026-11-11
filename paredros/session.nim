@@ -1,4 +1,4 @@
-## What hitl reads, read only: Claude Code's transcripts (an undocumented
+## What paredros reads, read only: Claude Code's transcripts (an undocumented
 ## format; this is the only module that knows it) and git.
 ##
 ## A transcript is one JSON record per line: the main session's in
@@ -23,7 +23,7 @@ proc projectsDir*(): string =
 
 type
   Block* = object
-    ## One block of a message's content: the fields hitl reads.
+    ## One block of a message's content: the fields paredros reads.
     kind*: string           ## "text", "tool_use", "tool_result", ...
     text*: string           ## a text block's text
     id*, name*: string      ## a tool use's id and tool name
@@ -31,7 +31,7 @@ type
     message*: string        ## a tool use's input.message (SubagentHandback)
     toolUseId*: string      ## a tool result's tool_use_id
   Rec* = object
-    ## One transcript record: the fields hitl reads.
+    ## One transcript record: the fields paredros reads.
     kind*: string           ## its "type": "user", "assistant", "system", ...
     timestamp*, uuid*, cwd*: string
     origin*: string         ## origin.kind: "human" for a message the human typed
@@ -40,7 +40,7 @@ type
     blocks*: seq[Block]     ## message.content when it is a list
 
 proc readBlock(n: JsonNode): Block =
-  ## One content block: the fields hitl reads.
+  ## One content block: the fields paredros reads.
   result = Block()
   for k, v in pairs(n):
     case k
@@ -57,7 +57,7 @@ proc readBlock(n: JsonNode): Block =
     else: discard
 
 proc readRec(n: JsonNode): Rec =
-  ## One record: the fields hitl reads.
+  ## One record: the fields paredros reads.
   result = Rec()
   for k, v in pairs(n):
     case k
@@ -254,7 +254,7 @@ type Completed* = object
   errors*: string   ## its stderr
 
 proc run*(cmd: openArray[string]; timeout: int; input = ""; cwd = ""): Result[Completed, string] =
-  ## The one way hitl runs a child process (git, claude): it gets `input` on
+  ## The one way paredros runs a child process (git, claude): it gets `input` on
   ## stdin, and its output comes back as text. The child starts in its own
   ## process group; when it outlives `timeout` seconds the whole group is
   ## killed, so a `claude` or `git` that started children of its own leaves
@@ -272,7 +272,7 @@ proc run*(cmd: openArray[string]; timeout: int; input = ""; cwd = ""): Result[Co
                          options = {poUsePath, poDaemon})
     pid = p.processID
     # GAP: a child that keeps its output open is not stopped at the timeout,
-    # only once it closes it, and one that fills its stderr pipe while hitl
+    # only once it closes it, and one that fills its stderr pipe while paredros
     # waits on stdout waits for ever, because std/osproc has no `communicate`
     # (bug-reports/120-osproc-has-no-communicate): stdout is read to its end,
     # then stderr, and only then is the time left given to waitForExit.

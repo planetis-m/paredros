@@ -1,11 +1,11 @@
-## Saved decisions (test_hitl.py): ReviewTests.test_a_draft_is_a_record_and_its_text_is_derived,
+## Saved decisions (test_paredros.py): ReviewTests.test_a_draft_is_a_record_and_its_text_is_derived,
 ## ReviewTests.test_decisions_draft_stale_and_delivered, and the decision parts
 ## of WorkItemTests.test_page_identity_survives_new_material_and_rewritten_briefs
 ## (its ledger parts are in twork; the page comes with pages).
 
 import std/[syncio, strutils, os, assertions, json, opt, result, tables]
 import fixtures
-import ../hitl/[state, brief, work, drafts]
+import ../paredros/[state, brief, work, drafts]
 
 setUp()
 

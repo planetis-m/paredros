@@ -1,10 +1,10 @@
-## The companion's setup (test_hitl.py): ReviewTests.test_companion_setup_builds_its_arguments
+## The companion's setup (test_paredros.py): ReviewTests.test_companion_setup_builds_its_arguments
 ## and SecurityTests.test_companion_may_run_only_reads. The refusals come with
 ## serve.
 
 import std/[syncio, strutils, os, paths, envvars, assertions, json, opt, result]
 import fixtures
-import ../hitl/[state, config, companion]
+import ../paredros/[state, config, companion]
 
 setUp()
 
@@ -49,7 +49,7 @@ block companion_setup_builds_its_arguments:
   let scratch = state("scratch", Sid)
   let allow = rules(args, "allow")
   assert "Edit(/" & scratch & "/**)" in allow, "`//`: an absolute path"
-  for a in allow: assert "bin/hitl" notin a, "no hitl command: " & a
+  for a in allow: assert "bin/paredros" notin a, "no paredros command: " & a
   let system = after(args, "--append-system-prompt")
   assert "Compare" notin system, "no config: no compare action"
   assert "{" notin system
@@ -72,7 +72,7 @@ block companion_may_run_only_reads:  # SecurityTests.test_companion_may_run_only
     if r.startsWith("Bash("): allow.add r.substr(5, r.len - 4)
   for r in rules(args, "deny"):
     if r.startsWith("Bash("): deny.add r.substr(5, r.len - 4)
-  let me = (try: $paths.getCurrentDir() except: ".") & "/bin/hitl"
+  let me = (try: $paths.getCurrentDir() except: ".") & "/bin/paredros"
   # with --restricted and -p, what no allow rule names is refused (checked against the real CLI)
   var writes: seq[string] = @[]
   for f in ["", " --no-optional-locks"]:

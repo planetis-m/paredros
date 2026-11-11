@@ -1,10 +1,10 @@
 # Review desk: design spec
 
-Status: frozen. Every change to the pages (`static/hitl.css`, `static/hitl.js`, and `pages.py`'s `CHAT_HTML` and page builders) follows this file. To change something this file does not allow, get the user's approval first and update this file in the same commit.
+Status: frozen. Every change to the pages (`static/paredros.css`, `static/paredros.js`, and `pages.py`'s `CHAT_HTML` and page builders) follows this file. To change something this file does not allow, get the user's approval first and update this file in the same commit.
 
 Baseline: commit bd249f5. That design stays. This file records it, answers the open questions and lists the few changes to make. Where this file says nothing, bd249f5's behaviour stands.
 
-Note: the pages in `~/.local/state/hitl/review/26c3c765/` were built by the rejected implementation (`main.index`, `p.fresh`, `.save-btn`). Don't use them as a reference.
+Note: the pages in `~/.local/state/paredros/review/26c3c765/` were built by the rejected implementation (`main.index`, `p.fresh`, `.save-btn`). Don't use them as a reference.
 
 ---
 
@@ -20,7 +20,7 @@ Note: the pages in `~/.local/state/hitl/review/26c3c765/` were built by the reje
 8. **The repeated label on "Your decisions".** Rows start with the answer itself, with no "You chose:" or "My decision:" prefix: the strip's heading already says whose they are. Line two is the item number and the question, in grey, and links to that decision. The draft id and "(approved by me)" are not shown; they stay in the copied text, which the session needs. *Reason: say it once.*
 9. **One more improvement.** **Chat bubbles show the button you pressed** ("Explain the options", "Grill me", the compare button), not the long prompt behind it. (Copy all on the strip and the cards' countdown were tried and dropped to keep the pages simple: each decision is copied with one click, and a card always shows its exact number of decisions.)
 
-10. **Work items instead of bug reports.** (Added when hitl became generic.) A page is one work item of any Claude Code session: a bug fixed, a module ported, a feature. So the words follow: the index is "Work items", the eyebrow "Item #63", the way out "‹ All items", the end row "Next item". The stale reason says "The code changed" (not "the fix"). The compare button and the Spec lines appear only when the project's config asks for them. Everything else stays as it is. *Reason: the pages describe the work, whatever kind it is.*
+10. **Work items instead of bug reports.** (Added when paredros became generic.) A page is one work item of any Claude Code session: a bug fixed, a module ported, a feature. So the words follow: the index is "Work items", the eyebrow "Item #63", the way out "‹ All items", the end row "Next item". The stale reason says "The code changed" (not "the fix"). The compare button and the Spec lines appear only when the project's config asks for them. Everything else stays as it is. *Reason: the pages describe the work, whatever kind it is.*
 
 Two things are replaced: the "Next: #N" link (its job moves to the Next item row) and "Ask the companion" (now "Ask"). Dropped later, by decision: Copy all, the card countdown, the remembered unsaved choice and the "more" note.
 
@@ -247,9 +247,9 @@ Phone (<640): "Suggested" moves under the option text.
 The code stops breaking out. The decision padding becomes 20×16.
 ```
 
-An item without a brief shows the header without a summary, then "No brief yet. Run `hitl brief 63`.", the compare button when configured, The code, and the Next item row.
+An item without a brief shows the header without a summary, then "No brief yet. Run `paredros brief 63`.", the compare button when configured, The code, and the Next item row.
 
-Before `hitl brief` has sorted the session into work items, the index shows "No work items yet. Run `hitl brief`." under the title, then the three empty lanes.
+Before `paredros brief` has sorted the session into work items, the index shows "No work items yet. Run `paredros brief`." under the title, then the three empty lanes.
 
 ### 4.3 Chat sheet (served only)
 
@@ -353,7 +353,7 @@ Hidden when there are no drafts. Anatomy:
 | Stale (known from `/drafts`) | the mark "Out of date" after the answer (like "Suggested"), and no Copy button: the answer can't be sent as it stands, and the row already opens the decision to save again. The reason is in the mark's tooltip and screen-reader text. |
 | Copy failed | the exact text appears in a read-only, preselected field under the row, with "Copy failed. Press Ctrl+C." |
 
-Copy runs `/send`, which makes the same re-check as `hitl directions send`: it refuses a draft that already reached the session or whose facts changed.
+Copy runs `/send`, which makes the same re-check as `paredros directions send`: it refuses a draft that already reached the session or whose facts changed.
 
 ### 5.5 Item header
 
@@ -450,7 +450,7 @@ On the last item the row reads only "All items ›" and links to the index.
 | Where | String |
 |---|---|
 | Index title | Work items |
-| No items yet | No work items yet. Run `hitl brief`. |
+| No items yet | No work items yet. Run `paredros brief`. |
 | Strip heading | Your decisions |
 | Strip button | Copy |
 | Strip row | `<answer>` / `#63  <question>` |
@@ -466,7 +466,7 @@ On the last item the row reads only "All items ›" and links to the index.
 | Top bar | All items |
 | Next row tooltip | #69 `<title>` (Alt+Right) |
 | Eyebrow | Item #63 |
-| No brief | No brief yet. Run `hitl brief 63`. |
+| No brief | No brief yet. Run `paredros brief 63`. |
 | Header button | the config's compare label, e.g. Compare with Nim |
 | Section headings | Decisions for you · Contradicts the spec · Needs another review · Could cause more bugs · Decisions made · The code |
 | Code count | 1 file · 3 files |

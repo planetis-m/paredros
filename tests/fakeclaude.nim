@@ -1,5 +1,5 @@
 ## A stand-in for `claude -p`, built as `claude` and put first on PATH by the
-## tests: test_hitl.py patches brief.ask_model with fake_model, which Nimony
+## tests: test_paredros.py patches brief.ask_model with fake_model, which Nimony
 ## cannot do, so this program stands in for the model run.
 ##
 ## Each call is recorded in $FAKE_LOG/<n>/ (n counts from 0 in the order the
@@ -15,7 +15,7 @@
 
 import std/[syncio, strutils, os, envvars, cmdline, json]
 import std/posix/posix
-import ../hitl/[state, brief]
+import ../paredros/[state, brief]
 
 type PlanItem = object
   ## One item of the plan's split.

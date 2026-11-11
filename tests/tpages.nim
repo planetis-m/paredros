@@ -1,4 +1,4 @@
-## The pages (test_hitl.py): ReviewTests.test_the_page_script_parses,
+## The pages (test_paredros.py): ReviewTests.test_the_page_script_parses,
 ## test_build_shows_brief_code_and_sources, test_lanes and
 ## test_briefs_and_pages_hold_every_entry, and the page parts of
 ## WorkItemTests.test_single_agent_session and
@@ -6,7 +6,7 @@
 
 import std/[syncio, strutils, os, envvars, assertions, json, opt, result, tables]
 import fixtures
-import ../hitl/[state, session, config, render, brief, work, pages]
+import ../paredros/[state, session, config, render, brief, work, pages]
 
 setUp()
 
@@ -30,7 +30,7 @@ proc between(s, a, b: string): string =
 
 block the_page_script_parses:  # ReviewTests.test_the_page_script_parses
   if findExe("node").len > 0:
-    let r = run(["node", "--check", appDir() & "/static/hitl.js"], 60)
+    let r = run(["node", "--check", appDir() & "/static/paredros.js"], 60)
     assert r.isOk and r.get(Completed()).code == 0, r.get(Completed()).errors
   else:
     echo "skipped the_page_script_parses: node is not installed"
@@ -65,8 +65,8 @@ block build_shows_brief_code_and_sources:  # ReviewTests.test_build_shows_brief_
   assert "Could cause more bugs" notin index, "no other counts"
   assert "Copy all" notin index
   assert "<span class=\"mark\">Suggested</span><span class=\"why\">Nim 2 allows it.</span>" in page
-  assert readText(dest & "/hitl.js") == readText(appDir() & "/static/hitl.js")
-  assert "<link rel=\"stylesheet\" href=\"hitl.css\">" in page
+  assert readText(dest & "/paredros.js") == readText(appDir() & "/static/paredros.js")
+  assert "<link rel=\"stylesheet\" href=\"paredros.css\">" in page
   assert "<p class=\"src\">From fixer</p>" in page, "no clock times"
   let qid = "q1-" & did   # the answers are one radio group
   assert "<p class=\"text\" id=\"" & qid & "\">" in page
@@ -87,7 +87,7 @@ block build_shows_brief_code_and_sources:  # ReviewTests.test_build_shows_brief_
     """</h2><span class="c">none</span></div></section>""" in page, "empty sections stay, saying so"
   # no config: no spec note, no compare button; the helpers speak of the project's users
   assert "No Spec line" notin page
-  assert "class=\"hitl-acts\"" notin page
+  assert "class=\"paredros-acts\"" notin page
   assert "would mean for the project&#x27;s users" in page
   let cfg = config.load("", example())
   assert cfg.isOk, cfg.error("")

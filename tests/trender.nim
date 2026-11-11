@@ -1,7 +1,7 @@
-## HTML, escaped by default (test_hitl.py RenderTests).
+## HTML, escaped by default (test_paredros.py RenderTests).
 
 import std/[strutils, assertions, rex, opt]
-import ../hitl/render
+import ../paredros/render
 
 const Markdown = [  # (source, HTML): the subset, and what stays as written
   ("# T", "<h2>T</h2>"),                                         # the page owns h1

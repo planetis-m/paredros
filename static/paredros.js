@@ -6,24 +6,24 @@
     var a=document.querySelector(e.key==='ArrowLeft'?'link[rel=prev]':e.key==='ArrowRight'?'link[rel=next]':null);
     if(a){e.preventDefault(); location.href=a.href}
   });
-  if(!window.HITL) return;               // opened as a file: no server, no chat
+  if(!window.PAREDROS) return;               // opened as a file: no server, no chat
   var quote="", opener=null;
-  var ask=$('hitl-ask'), open=$('hitl-open'), chat=$('hitl-chat'), log=$('hitl-log'), q=$('hitl-q'),
-      qt=$('hitl-quote'), qb=$('hitl-qbox'), form=$('hitl-form');
+  var ask=$('paredros-ask'), open=$('paredros-open'), chat=$('paredros-chat'), log=$('paredros-log'), q=$('paredros-q'),
+      qt=$('paredros-quote'), qb=$('paredros-qbox'), form=$('paredros-form');
   open.classList.add('on');
   // questions the brief does not precompute; your bubble shows the button you pressed
   document.querySelectorAll('[data-ask]').forEach(function(b){
-    b.hidden=false; b.addEventListener('click',function(){hitlAsk(b.dataset.ask,'',b.textContent.trim())})});
+    b.hidden=false; b.addEventListener('click',function(){paredrosAsk(b.dataset.ask,'',b.textContent.trim())})});
   function show(){opener=document.activeElement; chat.classList.add('open'); chat.setAttribute('aria-hidden','false');
-    document.documentElement.classList.add('hitl-open'); open.classList.remove('on'); q.focus()}
+    document.documentElement.classList.add('paredros-open'); open.classList.remove('on'); q.focus()}
   function hide(){chat.classList.remove('open'); chat.setAttribute('aria-hidden','true');
-    document.documentElement.classList.remove('hitl-open'); open.classList.add('on');
+    document.documentElement.classList.remove('paredros-open'); open.classList.add('on');
     (opener&&document.contains(opener)&&opener!==document.body?opener:open).focus()}
   function setQuote(t){quote=t; qt.textContent=t; qb.classList.toggle('on',!!t)}
   function place(){
     var s=window.getSelection(), t=s&&s.rangeCount?s.toString().trim():"";
     var el=s&&s.anchorNode?(s.anchorNode.nodeType===1?s.anchorNode:s.anchorNode.parentElement):null;
-    if(!t||form.contains(s.anchorNode)||(el&&el.closest('button,input,textarea,select,a,nav,.qact,.qstate,#hitl-decisions'))){
+    if(!t||form.contains(s.anchorNode)||(el&&el.closest('button,input,textarea,select,a,nav,.qact,.qstate,#paredros-decisions'))){
       ask.classList.remove('on'); return}
     ask.classList.add('on'); ask.dataset.text=t.slice(0,1500);
     // 10 below the selection, kept inside the viewport (above it when there is no room below)
@@ -37,8 +37,8 @@
     if(e.target!==ask&&!ask.contains(e.target)) setTimeout(place,0)});
   document.addEventListener('keyup',function(e){if(e.shiftKey||e.key==='Shift') place()});
   ask.addEventListener('click',function(){setQuote(ask.dataset.text||""); ask.classList.remove('on'); show()});
-  open.addEventListener('click',show); $('hitl-close').addEventListener('click',hide);
-  $('hitl-unquote').addEventListener('click',function(){setQuote(''); q.focus()});
+  open.addEventListener('click',show); $('paredros-close').addEventListener('click',hide);
+  $('paredros-unquote').addEventListener('click',function(){setQuote(''); q.focus()});
   document.addEventListener('keydown',function(e){
     if(e.ctrlKey&&e.shiftKey&&!e.altKey&&(e.key==='A'||e.key==='a')){   // keyboard path to Ask about this
       var s=window.getSelection(), t=s&&s.rangeCount&&!form.contains(s.anchorNode)?s.toString().trim():"";
@@ -56,9 +56,9 @@
     var it=document.createElement('div'); it.className='it wait'; it.textContent='Thinking…'; it.setAttribute('aria-busy','true'); log.appendChild(it);
     log.scrollTop=log.scrollHeight;
     var body=JSON.stringify({question:text,quote:quote,item:document.body.dataset.item||"",title:document.title});
-    q.value=''; setQuote(''); $('hitl-send').disabled=true;
+    q.value=''; setQuote(''); $('paredros-send').disabled=true;
     function done(){it.classList.remove('wait'); it.removeAttribute('aria-busy')}
-    fetch('/ask',{method:'POST',headers:{'Content-Type':'application/json','X-HITL-Token':HITL.token},body:body})
+    fetch('/ask',{method:'POST',headers:{'Content-Type':'application/json','X-PAREDROS-Token':PAREDROS.token},body:body})
       .then(function(r){return r.json()}).then(function(j){
         done(); if(j.error){it.textContent='No answer. '+j.error; return}
         it.innerHTML=j.html;
@@ -68,21 +68,21 @@
           j.refused.forEach(function(c){var p=document.createElement('code'); p.textContent=c; r.appendChild(p)});
           it.appendChild(r)}
       }).catch(function(e){done(); it.textContent='No answer. '+e})
-      .finally(function(){$('hitl-send').disabled=false; log.scrollTop=log.scrollHeight});
+      .finally(function(){$('paredros-send').disabled=false; log.scrollTop=log.scrollHeight});
   }
-  $('hitl-send').addEventListener('click',function(){send()});
+  $('paredros-send').addEventListener('click',function(){send()});
   q.addEventListener('keydown',function(e){if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();send()}});
-  function hitlAsk(question,quoteText,label){setQuote(quoteText||''); show(); q.value=question; send(label)}
-  window.hitlAsk=hitlAsk;
+  function paredrosAsk(question,quoteText,label){setQuote(quoteText||''); show(); q.value=question; send(label)}
+  window.paredrosAsk=paredrosAsk;
 })();
 
 (function(){
-  if(!window.HITL) return;   // opened as a file: decisions are read-only
+  if(!window.PAREDROS) return;   // opened as a file: decisions are read-only
   function icon(size,paths){return '<svg width="'+size+'" height="'+size+'" viewBox="0 0 20 20" aria-hidden="true" fill="none" '+
     'stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">'+paths+'</svg>'}
   var ICON={check:icon(16,'<path d="M4.5 10.5l3.5 3.5 7.5-8"/>'),   // checkmark and doc.on.doc (DESIGN.md 5)
     copy:icon(18,'<rect x="7" y="7" width="9.5" height="10.5" rx="2"/><path d="M13 7V5.5a2 2 0 0 0-2-2H5.5a2 2 0 0 0-2 2V12a2 2 0 0 0 2 2H7"/>')};
-  function api(path,obj){return fetch(path,{method:'POST',headers:{'Content-Type':'application/json','X-HITL-Token':HITL.token},
+  function api(path,obj){return fetch(path,{method:'POST',headers:{'Content-Type':'application/json','X-PAREDROS-Token':PAREDROS.token},
     body:JSON.stringify(obj||{})}).then(function(r){return r.json().then(function(j){j._status=r.status; return j})})}
   function hhmm(ts){try{var d=new Date(ts); return d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}catch(e){return ts}}
   function el(tag,cls,text){var e=document.createElement(tag); if(cls) e.className=cls; if(text!=null) e.textContent=text; return e}
@@ -235,13 +235,13 @@
     var act=li.querySelector('.qact'); if(act) act.hidden=false;
     var opts=[].map.call(li.querySelectorAll('.opt'),function(o){return '- '+o.dataset.opt}).join('\n');
     var ex=li.querySelector('.explain'), gr=li.querySelector('.grill');
-    if(ex) ex.addEventListener('click',function(){window.hitlAsk(ex.dataset.q+'\n'+opts, li.dataset.question, ex.textContent)});
-    if(gr) gr.addEventListener('click',function(){window.hitlAsk(gr.dataset.q+'\n'+opts, li.dataset.question, gr.textContent)});
+    if(ex) ex.addEventListener('click',function(){window.paredrosAsk(ex.dataset.q+'\n'+opts, li.dataset.question, ex.textContent)});
+    if(gr) gr.addEventListener('click',function(){window.paredrosAsk(gr.dataset.q+'\n'+opts, li.dataset.question, gr.textContent)});
   });
 
   // the index: your saved decisions, each ready to copy
   function strip(drafts){
-    var s=document.getElementById('hitl-decisions'); if(!s) return;
+    var s=document.getElementById('paredros-decisions'); if(!s) return;
     var open=drafts.filter(function(d){return !d.delivered}), sent=drafts.length-open.length;
     if(!open.length&&!sent) return;
     s.hidden=false;

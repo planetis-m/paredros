@@ -1,7 +1,7 @@
 ## Saved decisions ("drafts"): each one a JSON record in
 ## $STATE/directions/<s>/d<N>.json, written when the human saves an answer on
 ## a page (that is the approval), re-checked against the current code and
-## brief before its text leaves hitl, and delivered when the human pastes its
+## brief before its text leaves paredros, and delivered when the human pastes its
 ## text, which ends `(d<N>, approved by me)`, into the session.
 
 import std/[syncio, strutils, os, paths, dirs, files, algorithm, tables, json, opt, result]
@@ -27,7 +27,7 @@ type
     delivered*: Opt[string]  ## when the human pasted it into the session; none if not yet
     stale*: seq[string]      ## what changed since it was saved; empty once delivered
   Verdict* = object
-    ## The re-check before a draft's text leaves hitl.
+    ## The re-check before a draft's text leaves paredros.
     draft*: Opt[DraftState]  ## the draft's state; none when there is no such draft
     why*: Opt[string]        ## why it may not go now; none when it may
 
@@ -208,7 +208,7 @@ proc draftsState*(sid, spath: string;
   result = ok[seq[DraftState], string](states)
 
 proc check*(sid, spath, name: string): Result[Verdict, string] =
-  ## The one re-check before a draft's text leaves hitl (Copy on a page): its
+  ## The one re-check before a draft's text leaves paredros (Copy on a page): its
   ## state, and why it may not go now (none when it may). The error says why
   ## the drafts cannot be read.
   let all = draftsState(sid, spath)

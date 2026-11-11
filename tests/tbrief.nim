@@ -1,10 +1,10 @@
-## The briefs and the ledger: the ledger test of test_hitl.py ProcessTests,
+## The briefs and the ledger: the ledger test of test_paredros.py ProcessTests,
 ## the model-run test of SecurityTests, the prompt asserts of ConfigTests and
 ## ReviewTests.test_brief_parse_keeps_known_sections.
 
 import std/[strutils, assertions, json, opt, result, tables]
 import fixtures
-import ../hitl/[config, brief]
+import ../paredros/[config, brief]
 
 setUp()
 

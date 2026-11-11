@@ -1,9 +1,9 @@
-## The project config (test_hitl.py ConfigTests). The asserts on the brief's
+## The project config (test_paredros.py ConfigTests). The asserts on the brief's
 ## prompt come with brief.nim; the script test comes with the CLI.
 
 import std/[strutils, envvars, assertions, opt, result]
 import fixtures
-import ../hitl/config
+import ../paredros/config
 
 setUp()
 
@@ -25,7 +25,7 @@ block the_nimony_example:  # ConfigTests.test_the_nimony_example
 
 block a_json_file_beside_the_session:  # ConfigTests.test_a_json_file_beside_the_session
   let d = tmp() & "/cfgdir"
-  writeText(d & "/.hitl.json",
+  writeText(d & "/.paredros.json",
             """{"users": "people who type", "compare": {"label": "L", "prompt": "P"}}""")
   let cfg = load(d).get(Config())
   assert cfg.users == "people who type" and cfg.spec == "", "users and spec"

@@ -1,10 +1,11 @@
-# Porting hitl to Nimony
+# Porting paredros to Nimony
 
-hitl is ported from the Python in `~/Projects/hitl` (branch `general`),
+paredros is ported from the Python in `~/Projects/hitl` (branch `general`),
 module for module, on Nimony's standard library alone. The port is done:
 every module and its tests are ported, the pages built from a real session
-are byte for byte the Python's, and the two share `~/.local/state/hitl` (each
-reads the ledger, the brief cache and the drafts the other writes). What is
+are byte for byte the Python's, and the state folders (`~/.local/state/hitl`,
+`~/.local/state/paredros`) have the same layout (each reads the ledger, the
+brief cache and the drafts the other writes). What is
 still less accurate than the Python is listed under **Gaps**, each with the
 standard library's missing piece or bug report; when upstream fixes one, the
 `# GAP:` comment and its row go. The first port, on kroki and hashi, is on
@@ -16,7 +17,7 @@ branch `main`.
   `ARCHITECTURE.md`, `DESIGN.md` and `README.md` there describe the behaviour.
 - `test_hitl.py` there is the behaviour to keep: each module's tests are
   ported with it.
-- `companion.md`, `static/hitl.css`, `static/hitl.js`, `examples/` and
+- `companion.md`, `static/paredros.css`, `static/paredros.js`, `examples/` and
   `DESIGN.md` here are copies of the Python repository's; keep them identical.
 
 ## Modules
@@ -26,17 +27,17 @@ only from the ones above it, never below, and never inside a proc.
 
 | Python | Nimony | What |
 |---|---|---|
-| `state.py` | `hitl/state.nim` | hitl's own files: `state()`, `writeAtomic`, companion fork ids, `appDir`, and the shared text helpers `collapse`, `quote` (JSON text) and `subGroup` (re.sub with a group) |
-| `session.py` | `hitl/session.nim` | transcripts (the only module that knows their format), agents, sessions, `run()` for child processes, `git()`, `gitWrites` |
-| `config.py` | `hitl/config.nim` | the config as a value: `load(cwd, path)`, `expand` |
-| `render.py` | `hitl/render.nim` | all HTML: `tag()` escaping by default, `inline`, `markdown`, `diff` |
-| `brief.py` | `hitl/brief.nim` | the split, the briefs, their cache and prompts, `decisionId` |
-| `work.py` | `hitl/work.nim` | sources, commit discovery, current code, `collect`, `codeTips` |
-| `pages.py` | `hitl/pages.nim` | the item and index pages, `build`, `builtTips` |
-| `drafts.py` | `hitl/drafts.nim` | saved decisions: decide, withdraw, check, delivery |
-| `companion.py` | `hitl/companion.nim` | the companion's setup: restricted mode, profile, prompt, dirs |
-| `serve.py` | `hitl/serve.nim` | the server: pages, `/config.js`, the five POST actions, the chat |
-| `hitl.py` | `hitl.nim` | the CLI: `brief`, `serve`; prints an error result as an exit message |
+| `state.py` | `paredros/state.nim` | paredros's own files: `state()`, `writeAtomic`, companion fork ids, `appDir`, and the shared text helpers `collapse`, `quote` (JSON text) and `subGroup` (re.sub with a group) |
+| `session.py` | `paredros/session.nim` | transcripts (the only module that knows their format), agents, sessions, `run()` for child processes, `git()`, `gitWrites` |
+| `config.py` | `paredros/config.nim` | the config as a value: `load(cwd, path)`, `expand` |
+| `render.py` | `paredros/render.nim` | all HTML: `tag()` escaping by default, `inline`, `markdown`, `diff` |
+| `brief.py` | `paredros/brief.nim` | the split, the briefs, their cache and prompts, `decisionId` |
+| `work.py` | `paredros/work.nim` | sources, commit discovery, current code, `collect`, `codeTips` |
+| `pages.py` | `paredros/pages.nim` | the item and index pages, `build`, `builtTips` |
+| `drafts.py` | `paredros/drafts.nim` | saved decisions: decide, withdraw, check, delivery |
+| `companion.py` | `paredros/companion.nim` | the companion's setup: restricted mode, profile, prompt, dirs |
+| `serve.py` | `paredros/serve.nim` | the server: pages, `/config.js`, the five POST actions, the chat |
+| `paredros.py` | `paredros.nim` | the CLI: `brief`, `serve`; prints an error result as an exit message |
 
 ## How the code is written
 
@@ -60,7 +61,7 @@ only from the ones above it, never below, and never inside a proc.
   failure the user is told about (no session matches, a bad config file, an
   unreadable ledger, no working directory) is a value: the routine returns
   `Result[T, string]` with the message, and each layer passes it up; only
-  `hitl.nim` prints `hitl: <message>` and exits 1. Absence is `Opt[T]`.
+  `paredros.nim` prints `paredros: <message>` and exits 1. Absence is `Opt[T]`.
   Stdlib I/O raises the system `ErrorCode`: it is caught at the first routine
   that has an answer, and a routine is `{.raises.}` only where the failure
   really must cross layers (`writeAtomic`, `writeJson`, `newCompanionId`).
@@ -91,7 +92,7 @@ only from the ones above it, never below, and never inside a proc.
 
 ## Build and tests
 
-- `./build.sh` builds `bin/hitl`; `./build.sh FILE.nim OUT [-- flags]` any
+- `./build.sh` builds `bin/paredros`; `./build.sh FILE.nim OUT [-- flags]` any
   other program. It uses the toolchain copy in `nimcache/toolchain` (never
   writes into `~/Projects/nimony`, bug-reports/108); `./build.sh --toolchain`
   makes or refreshes the copy.
@@ -103,7 +104,7 @@ only from the ones above it, never below, and never inside a proc.
   builds and runs them all, debug and release; `tests/run tpages` only some.
 - Real data: build the pages of a real session with the port and with the
   Python into two `scratch/` directories, both reading a copy of
-  `~/.local/state/hitl` (never the real one), and compare them byte for byte.
+  `~/.local/state/paredros` (never the real one), and compare them byte for byte.
 - Nimony bug reports are in `~/Projects/bug-reports/` (one folder each).
 
 ## Progress
@@ -146,9 +147,9 @@ bug, left for another day.
 | `pages.updated` | a project name whose first letter's capital is two letters (`ß`) gets one | std/unicode maps one rune to one rune |
 | `pages.build`, `pages.builtTips` | a page or tips.json item number is ASCII digits only: `i٣.html` is no page and is never deleted | std/unicode has no digit test |
 | `serve.run` | the server listens on every interface, not on 127.0.0.1 only (the Host check and the token still hold) | std/httpserver's `listenHttp` takes no address (bug-reports/113-listenhttp-cannot-choose-listen-address) |
-| `serve.run` | a port in use stops hitl with a failed assertion, not a message | std/ioring's `listenTcp` asserts that bind succeeds (bug-reports/109-listentcp-asserts-on-busy-port) |
+| `serve.run` | a port in use stops paredros with a failed assertion, not a message | std/ioring's `listenTcp` asserts that bind succeeds (bug-reports/109-listentcp-asserts-on-busy-port) |
 | `serve` | a client that goes away before its answer is written stops the whole server (SIGPIPE) | std/httpserver neither ignores nor suppresses the signal (bug-reports/114-httpserver-sigpipe-kills-process-on-gone-peer) |
 | `serve` | a refusal or a missing file (421, 403, 404, 501) has no body, where Python sends an HTML error page; files have no Last-Modified and are never a 304; a target that climbs above the pages (`/../x`) is a 400, not a 404 | std/httpserver has no error pages and no file handler, and refuses such a target itself |
 | `serve` (every JSON reply) | non-ASCII text is written as it is, not `\u`-escaped as Python's `json.dumps` does, and control characters other than `\b \f \n \r \t` raw | std/json has no ASCII mode, and its `$` does not escape them (bug-reports/104-json-dollar-control-chars-unescaped) |
 | `serve.run` (the browser) | `$BROWSER` is one command given the URL, else `xdg-open`; Python's webbrowser also reads a list of commands in `$BROWSER`, fills in `%s` and knows the desktop's browsers | Nimony's standard library has no browser module |
-| `hitl.nim` | with no command the help follows `[Error] missing arguments` and hitl exits 1 (Python: the help alone, exit 0); a bad command line is told on stdout with the help and exit 1 (Python: stderr, the usage, exit 2); an option's value is given as `--port=N` or `--port:N`, not `--port N` | that is how std/smartcli parses |
+| `paredros.nim` | with no command the help follows `[Error] missing arguments` and paredros exits 1 (Python: the help alone, exit 0); a bad command line is told on stdout with the help and exit 1 (Python: stderr, the usage, exit 2); an option's value is given as `--port=N` or `--port:N`, not `--port N` | that is how std/smartcli parses |

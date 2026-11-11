@@ -1,12 +1,12 @@
-## Shared test fixtures, as test_hitl.py's setUpModule makes them: a
+## Shared test fixtures, as test_paredros.py's setUpModule makes them: a
 ## coordinator session (a fixer commits in its own worktree, a reviewer reads
 ## it) and a single-agent session (two fixes, the first amended, and the
 ## human's own commit in the same checkout). Everything lives in one temp
-## directory; setUp points hitl's state and Claude Code's config there before
+## directory; setUp points paredros's state and Claude Code's config there before
 ## anything runs, so no test touches the real ~/.local/state or ~/.claude.
 
 import std/[syncio, strutils, os, paths, dirs, tempfiles, envvars, json, opt, result]
-import ../hitl/[state, session, config, brief, work]
+import ../paredros/[state, session, config, brief, work]
 
 const
   Sid* = "11111111-2222-3333-4444-555555555555"   ## a coordinator with a fixer and a reviewer
@@ -15,7 +15,7 @@ const
 # ------------------------------------------------------------------- helpers
 
 proc tmp*(): string =
-  ## The fixtures' temp directory (test_hitl.py's TMP).
+  ## The fixtures' temp directory (test_paredros.py's TMP).
   # The environment holds it: setUp put Claude Code's config dir right in it.
   parentDir(getEnv("CLAUDE_CONFIG_DIR"))
 
@@ -54,7 +54,7 @@ proc obj*(fields: openArray[(string, string)]): string =
   result.add "}"
 
 proc user*(text, ts: string; cwd = ""): string =
-  ## A message the human typed (test_hitl.py's user()), with cwd if given.
+  ## A message the human typed (test_paredros.py's user()), with cwd if given.
   var f = @[("type", quote"user"), ("timestamp", quote(ts)), ("origin", obj([("kind", quote"human")])),
             ("uuid", quote("u-" & ts)), ("message", obj([("content", quote(text))]))]
   if cwd.len > 0: f.add ("cwd", quote(cwd))
@@ -69,7 +69,7 @@ proc bash*(id, command: string): string =
   tool("Bash", id, [("command", quote(command))])
 
 proc assistant*(ts: string; text = ""; tool = ""; cwd = ""): string =
-  ## A record of the session speaking (test_hitl.py's assistant()): a text
+  ## A record of the session speaking (test_paredros.py's assistant()): a text
   ## block, a tool_use block (see tool and bash), or both; with cwd if given.
   var content: seq[string] = @[]
   if text.len > 0: content.add obj([("type", quote"text"), ("text", quote(text))])
@@ -104,8 +104,8 @@ proc spathOf*(sid: string): string =
   if result.len == 0: quit "no transcript for " & sid
 
 proc example*(): string =
-  ## examples/nimony.hitl.json; tests/run runs the tests from the repository.
-  (try: $paths.getCurrentDir() except: ".") & "/examples/nimony.hitl.json"
+  ## examples/nimony.paredros.json; tests/run runs the tests from the repository.
+  (try: $paths.getCurrentDir() except: ".") & "/examples/nimony.paredros.json"
 
 proc resetState*() =
   ## Every test that writes briefs, drafts or pages starts without any.
@@ -115,7 +115,7 @@ proc resetState*() =
 
 proc fake*(split: openArray[(string, seq[string])] = []; brief = ""; raw = ""): string =
   ## Puts the fake `claude` (tests/fakeclaude.nim) first on PATH, answering
-  ## as test_hitl.py's fake_model(split_plan, brief_answer) does: split names
+  ## as test_paredros.py's fake_model(split_plan, brief_answer) does: split names
   ## each new item's title (an existing item's number) and its handles, "C*"
   ## for every commit, and "housekeeping" the handles left out; brief is the
   ## briefs' answer, JSON text; raw, when given, is the whole answer to every
@@ -161,8 +161,8 @@ proc argvOf*(log: string; n: int): seq[string] =
     for a in items(t.root): result.add a.getStr
 
 proc runBrief*(sid: string; force = false): seq[(int, string)] =
-  ## What `hitl brief` does for the fixture session: sort its new material,
-  ## then write the briefs (test_hitl.py's cli("brief")). An error ends the
+  ## What `paredros brief` does for the fixture session: sort its new material,
+  ## then write the briefs (test_paredros.py's cli("brief")). An error ends the
   ## test run.
   let spath = spathOf(sid)
   let src = sources(spath)
@@ -188,13 +188,13 @@ proc setUp*() =
   ## Makes the fixtures in a fresh temp directory and points the environment at it.
   var root = ""
   try:
-    root = $createTempDir("hitl-test-", "")
+    root = $createTempDir("paredros-test-", "")
   except:
     quit "no temp dir"
   try:
     putEnv("CLAUDE_CONFIG_DIR", root & "/claude")
     putEnv("XDG_STATE_HOME", root & "/state")  # briefs and drafts go here
-    putEnv("HITL_NO_CLIPBOARD", "1")           # never touch the user's clipboard
+    putEnv("PAREDROS_NO_CLIPBOARD", "1")           # never touch the user's clipboard
   except:
     quit "cannot set the environment"
 

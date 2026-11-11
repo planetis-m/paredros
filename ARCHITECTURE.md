@@ -1,6 +1,6 @@
-# hitl: architecture
+# paredros: architecture
 
-The Nimony port of hitl. The behaviour, the data model and the rules are the
+The Nimony port of paredros. The behaviour, the data model and the rules are the
 Python version's (`~/Projects/hitl/ARCHITECTURE.md`, which also keeps the
 review findings that led to them); this file says the same for the Nimony
 code and marks where it differs. `DESIGN.md` governs the pages (look,
@@ -11,7 +11,7 @@ update it in the same commit.
 
 ## 1. Purpose and non-goals
 
-hitl is a human-in-the-loop desk beside a running Claude Code session: one
+paredros is a human-in-the-loop desk beside a running Claude Code session: one
 agent or a coordinator with subagents, doing any kind of work. It reads what
 the session already leaves behind (transcripts and git) and helps the human
 understand the work and decide. It offers:
@@ -24,10 +24,10 @@ understand the work and decide. It offers:
   before the human copies them and pastes them into the session;
 
 Non-goals:
-- Controlling the session. hitl never sends, stops, resumes or launches
+- Controlling the session. paredros never sends, stops, resumes or launches
   anything in it. The only path into the session is the human pasting text.
 - Burdening agents. No skills, hooks, protocol, files or extra reporting for
-  them. They never know hitl exists.
+  them. They never know paredros exists.
 - Writing to repositories, worktrees, transcripts, PRs or any upstream.
 - Being a product: no accounts, no multi-user, no remote access (but see
   6.3: the Nimony server cannot yet refuse the network), no database, no
@@ -44,8 +44,8 @@ These were decided with the user. Reopening one needs the user's approval.
 | Model calls | All through `claude -p` on the user's subscription. No other vendor or API: decision APIs (OpenAI's Decisions API, TypeSafe's Jev) were evaluated and rejected because the tasks are generative, need tool use and run rarely. |
 | Structured output | Approved next step: `--json-schema` for the split and the brief, replacing regex JSON extraction. |
 | Server | A minimal std/httpserver server with a Host check, a per-run token and an Origin check, used only for acting features (companion chat, saving, re-checking, copying). Static file mode stays for reading. It should bind 127.0.0.1 only; it cannot yet (6.3). |
-| State | Plain files under `$XDG_STATE_HOME/hitl` (default `~/.local/state/hitl/`). |
-| Config | Per project, JSON (`.hitl.json`), read with std/json. Replaces `.hitl.toml`/`tomllib`. |
+| State | Plain files under `$XDG_STATE_HOME/paredros` (default `~/.local/state/paredros/`). |
+| Config | Per project, JSON (`.paredros.json`), read with std/json. Replaces `.paredros.toml`/`tomllib`. |
 | Agents | Never burdened (section 1). |
 | Precompute | Everything that can be computed ahead is computed ahead (briefs, spec lines, recommendations). The companion does only live work. |
 | UI | `DESIGN.md` is frozen and governs the pages. |
@@ -55,29 +55,29 @@ These were decided with the user. Reopening one needs the user's approval.
 One responsibility each, in layers: a module imports only from the layers
 above it in this table, never from below, so there are no import cycles and
 no imports inside procs. No module reaches into another's files directly;
-they call each other's procs. Only `hitl.nim` exits the process. A failure
+they call each other's procs. Only `paredros.nim` exits the process. A failure
 the user is told about is a `Result[T, string]` with the message, passed up
-each layer: the CLI prints it as `hitl: <message>` and exits 1, the server
+each layer: the CLI prints it as `paredros: <message>` and exits 1, the server
 answers it as JSON. Absence is `Opt[T]`; standard-library I/O raises the
 system `ErrorCode`, caught at the first routine that has an answer. There
 are no exception types.
 
 | Module | Responsibility |
 |---|---|
-| `hitl/state.nim` | hitl's own files: the state folder per session (`state()`), atomic writes, the list of companion forks, the repository the binary was built in (`appDir`, for `companion.md` and `static/`), and the text helpers every layer shares (`collapse`, `quote` for JSON text, `subGroup`). |
-| `hitl/session.nim` | What hitl reads, read only: Claude Code's transcripts (the only module that knows their format: records, tool calls and their results, typed messages, agents, sessions), the one way to run a child process (`run()`: its own process group, killed whole on timeout), the git runner (`git()`, the only one), and the git commands a transcript ran that may make commits (`gitWrites`). |
-| `hitl/config.nim` | The project's config (`load(cwd, path)`): a value, loaded once by the CLI and passed down; code given none loads the session's default. |
-| `hitl/render.nim` | All HTML: `tag()` escapes text and attribute values unless a value is markup it built (`Html`, a distinct string) or a constant icon (`raw`); `inline` and `markdown` render a declared Markdown subset, and anything outside it stays as written; `diff` renders a unified diff by its hunk counts, names renames, mode changes and binary files, and past 600,000 characters shows whole files only and says how many it left out. No I/O. |
-| `hitl/brief.nim` | Model work that can be precomputed: the split (sources into ledger items) and one brief per item, both cached; the prompts and schemas; the decision id. Owns the ledger and brief files, and declares the material's types (`Turn`, `Worker`, `Commit`, `Sources`, `WorkItem`, `Work`). |
-| `hitl/work.nim` | The work as data: sources (turns, agents, commits) under stable keys, commits matched to the git calls that made them, each item's current code, and `collect`, which joins them with the ledger and the briefs. No model calls, no writes. |
-| `hitl/pages.nim` | The item and index pages from `collect`, all HTML through `render`; `build` writes them to the output directory only. |
-| `hitl/drafts.nim` | Saved decisions: write, read, withdraw, re-check, delivery detection. |
-| `hitl/companion.nim` | The companion's setup: restricted mode, its permission profile, its system prompt, its directories. |
-| `hitl/serve.nim` | The local server: serves the built pages, the token, and five POST actions that call `drafts`; holds the one companion conversation per run. Each connection runs on the thread pool; one question at a time goes to the companion. |
-| `hitl.nim` | The CLI (std/smartcli: `brief`, `serve`): picks the session, loads the config, turns an error result into an exit message. |
+| `paredros/state.nim` | paredros's own files: the state folder per session (`state()`), atomic writes, the list of companion forks, the repository the binary was built in (`appDir`, for `companion.md` and `static/`), and the text helpers every layer shares (`collapse`, `quote` for JSON text, `subGroup`). |
+| `paredros/session.nim` | What paredros reads, read only: Claude Code's transcripts (the only module that knows their format: records, tool calls and their results, typed messages, agents, sessions), the one way to run a child process (`run()`: its own process group, killed whole on timeout), the git runner (`git()`, the only one), and the git commands a transcript ran that may make commits (`gitWrites`). |
+| `paredros/config.nim` | The project's config (`load(cwd, path)`): a value, loaded once by the CLI and passed down; code given none loads the session's default. |
+| `paredros/render.nim` | All HTML: `tag()` escapes text and attribute values unless a value is markup it built (`Html`, a distinct string) or a constant icon (`raw`); `inline` and `markdown` render a declared Markdown subset, and anything outside it stays as written; `diff` renders a unified diff by its hunk counts, names renames, mode changes and binary files, and past 600,000 characters shows whole files only and says how many it left out. No I/O. |
+| `paredros/brief.nim` | Model work that can be precomputed: the split (sources into ledger items) and one brief per item, both cached; the prompts and schemas; the decision id. Owns the ledger and brief files, and declares the material's types (`Turn`, `Worker`, `Commit`, `Sources`, `WorkItem`, `Work`). |
+| `paredros/work.nim` | The work as data: sources (turns, agents, commits) under stable keys, commits matched to the git calls that made them, each item's current code, and `collect`, which joins them with the ledger and the briefs. No model calls, no writes. |
+| `paredros/pages.nim` | The item and index pages from `collect`, all HTML through `render`; `build` writes them to the output directory only. |
+| `paredros/drafts.nim` | Saved decisions: write, read, withdraw, re-check, delivery detection. |
+| `paredros/companion.nim` | The companion's setup: restricted mode, its permission profile, its system prompt, its directories. |
+| `paredros/serve.nim` | The local server: serves the built pages, the token, and five POST actions that call `drafts`; holds the one companion conversation per run. Each connection runs on the thread pool; one question at a time goes to the companion. |
+| `paredros.nim` | The CLI (std/smartcli: `brief`, `serve`): picks the session, loads the config, turns an error result into an exit message. |
 | `companion.md` | The companion's system prompt (a template filled by `companion.setup`). |
 | `DESIGN.md` | The page design spec (a copy of the Python's). |
-| `static/hitl.css`, `static/hitl.js` | The pages' CSS and JS, copied beside the pages by `build` (copies of the Python's). |
+| `static/paredros.css`, `static/paredros.js` | The pages' CSS and JS, copied beside the pages by `build` (copies of the Python's). |
 | `tests/` | `t<module>.nim` per module (the Python's `test_hitl.py`), `fixtures.nim` (throwaway git repositories and transcripts in a temp directory), `fakeclaude.nim` (a fake `claude` put first on PATH), `run`. |
 | `build.sh` | Builds with a private copy of the Nimony toolchain in `nimcache/toolchain`. |
 
@@ -112,7 +112,7 @@ Data flow:
 ## 4. Data model
 
 `<s>` is the first 8 characters of the session id. `$STATE` is
-`$XDG_STATE_HOME/hitl`. All JSON files are written atomically (temp file,
+`$XDG_STATE_HOME/paredros`. All JSON files are written atomically (temp file,
 then rename).
 
 ### 4.1 Sources and their keys
@@ -214,7 +214,7 @@ My decision: <answer>. (d<N>, approved by me)
 ### 4.6 Pages
 
 `$STATE/review/<s>/index.html` and `i<N>.html`,
-beside `hitl.css`, `hitl.js` and `tips.json` (the code tips `/drafts` reads).
+beside `paredros.css`, `paredros.js` and `tips.json` (the code tips `/drafts` reads).
 Disposable: rebuilt from items, briefs and git, each file written atomically;
 a build deletes only pages of items that are gone. They carry, as data
 attributes, exactly what an action needs: `data-item`, `data-did`,
@@ -262,15 +262,15 @@ numbering, identity or paths.
 ### 5.4 Browser
 
 - File mode (the pages `serve` built, opened as files): no server, read only;
-  the scripts detect the missing `window.HITL` and leave every control inert.
-- Served mode (`hitl serve`): the same pages plus `/config.js`, which sets
-  `window.HITL.token`.
+  the scripts detect the missing `window.PAREDROS` and leave every control inert.
+- Served mode (`paredros serve`): the same pages plus `/config.js`, which sets
+  `window.PAREDROS.token`.
 - Clipboard: `navigator.clipboard` in the page; when it fails, the text is
   shown for manual copying.
 
 ### 5.5 Config file
 
-`.hitl.json` in the session's working directory, or `--config FILE`. All
+`.paredros.json` in the session's working directory, or `--config FILE`. All
 keys optional; unknown keys are refused.
 
 ```json
@@ -285,14 +285,14 @@ feature works; there are no Spec lines and no compare button.
 
 ### 6.1 The read-only guarantee rests on
 
-1. hitl's own code: it writes only under `$STATE`. It never opens a transcript or repository file
+1. paredros's own code: it writes only under `$STATE`. It never opens a transcript or repository file
    for writing.
 2. git: only reading subcommands, always `--no-optional-locks`, so no index
    lock is taken.
 3. Model runs are constrained by permissions, not by prompts:
    - split and brief: Read, Grep and Glob are the only tools (`--tools`), no MCP;
    - the companion: the profile in 6.2.
-4. Nothing hitl writes is read by the agents: drafts reach the session only
+4. Nothing paredros writes is read by the agents: drafts reach the session only
    when the human pastes them.
 
 The user's own Claude Code settings merge with these profiles. Deny rules win
@@ -337,13 +337,13 @@ be denied or left out of the available tools, not merely left unallowed.
   gap. So the server is reachable from the network: the Host check below
   stops browsers, not a client on the network, which can send its own Host,
   read the token from `/config.js`, read the pages and post decisions or
-  questions, which run `claude` as the user. Do not run `hitl serve` on a
+  questions, which run `claude` as the user. Do not run `paredros serve` on a
   network you do not trust until bug 113 is fixed; then bind 127.0.0.1 and
   drop this item.
 - Answers only requests whose Host is `127.0.0.1:<port>` or
   `localhost:<port>` (DNS rebinding).
 - A random token per run, served only in `/config.js`, required in the
-  `X-HITL-Token` header of every POST. `/config.js` is refused when the
+  `X-PAREDROS-Token` header of every POST. `/config.js` is refused when the
   browser marks the request as coming from another site (`Sec-Fetch-Site`
   other than `same-origin` or `none`): another site's `<script src>` passes
   the Host check and would otherwise run the file in its own page and read
@@ -354,12 +354,12 @@ be denied or left out of the available tools, not merely left unallowed.
 - POSTs are refused unless Origin is empty or the server's own origin.
   No CORS, no OPTIONS handler, so cross-site pages cannot send the header.
 - Five POST actions only: `/drafts`, `/decide`, `/send`, `/withdraw`, `/ask`.
-  Every GET is a built file (pages, `hitl.css`, `hitl.js`, `tips.json`) or
+  Every GET is a built file (pages, `paredros.css`, `paredros.js`, `tips.json`) or
   `/config.js`.
 - Errors return JSON with a short message; a bad request never stops the
   server. A refusal or a missing file has no body (std/httpserver has no
   error pages). A client that goes away before its answer is written does
-  stop it (SIGPIPE, bug-reports/114), and a port in use stops `hitl serve`
+  stop it (SIGPIPE, bug-reports/114), and a port in use stops `paredros serve`
   with an assertion (bug-reports/109).
 
 ## 7. Invariants
@@ -367,7 +367,7 @@ be denied or left out of the available tools, not merely left unallowed.
 These never break. A change that would break one needs the user's approval
 and a migration.
 
-1. **Read only.** hitl never writes to transcripts, repositories, worktrees,
+1. **Read only.** paredros never writes to transcripts, repositories, worktrees,
    or anything upstream, and never sends anything to the session or its agents.
 2. **Agents never know.** No files, hooks, skills or messages for them.
 3. **Page identity is stable.** An item's number, once given, never changes,
@@ -375,7 +375,7 @@ and a migration.
    follows its question. Rewriting briefs or adding material changes neither.
 4. **Numbers come from code.** The model proposes groupings and titles; code
    assigns numbers, validates handles and drops anything else.
-5. **Approval is re-checked before use.** No draft text leaves hitl (page
+5. **Approval is re-checked before use.** No draft text leaves paredros (page
    Copy) unless, at that moment, it is not delivered and every
    recorded fact still holds. `drafts.check` is the one check.
 6. **Facts are the ones the human saw.** A draft records the code tip and the
@@ -414,7 +414,7 @@ and a migration.
 | Nimony, excluding tests and page CSS/JS | follows the Python's module for module (about 3,350 lines now); a module grows only with its Python module |
 | Page CSS and JS | 700 lines together |
 | Config keys | the current 4 (`spec`, `reader`, `users`, `compare`) |
-| Model runs | one split per `hitl brief`, one brief per changed item; none on page view |
+| Model runs | one split per `paredros brief`, one brief per changed item; none on page view |
 | Server actions | the five in 6.3 |
 
 Growth past a budget needs an equal cut elsewhere or the user's approval.
@@ -422,7 +422,7 @@ Prefer deleting code to adding it.
 
 ### 8.3 Adding a config option without growing the core
 
-A key is added only when the project, not hitl, holds the answer and no
+A key is added only when the project, not paredros, holds the answer and no
 generic default works. Then:
 1. Add it to the Python first, then here: to `defaults()` with a default that
    leaves behaviour unchanged, and validate it in `config.load` (unknown keys

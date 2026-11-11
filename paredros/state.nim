@@ -1,13 +1,13 @@
-## hitl's own files: where each session's state lives, how files are written,
+## paredros's own files: where each session's state lives, how files are written,
 ## the companion forks, and the few text helpers every layer shares.
 
 import std/[syncio, strutils, os, paths, dirs, files, envvars, json, unicode, rex]
 import std/crypto/sysrand
 
 proc outDir*(): string =
-  ## hitl's state directory: $XDG_STATE_HOME/hitl, else ~/.local/state/hitl.
+  ## paredros's state directory: $XDG_STATE_HOME/paredros, else ~/.local/state/paredros.
   # Read on every call, not once: the tests point it at a temp directory.
-  getEnv("XDG_STATE_HOME", getEnv("HOME") & "/.local/state") & "/hitl"
+  getEnv("XDG_STATE_HOME", getEnv("HOME") & "/.local/state") & "/paredros"
 
 proc state*(kind, sid: string): string =
   ## The one place a session's state folder is named: $STATE/<kind>/<first 8

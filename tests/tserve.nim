@@ -1,11 +1,11 @@
-## The server (test_hitl.py): ServerTests and
-## SecurityTests.test_refusals_are_reported_once_each. `hitl serve --port=0`
+## The server (test_paredros.py): ServerTests and
+## SecurityTests.test_refusals_are_reported_once_each. `paredros serve --port=0`
 ## runs on the coordinator fixture, on a port the system picks; curl is the
 ## browser, and the fake `claude` is the companion.
 
 import std/[syncio, strutils, os, paths, osproc, streams, envvars, assertions, json, opt, result]
 import fixtures
-import ../hitl/[state, session, brief, serve]
+import ../paredros/[state, session, brief, serve]
 
 setUp()
 resetState()
@@ -16,11 +16,11 @@ let log = fake(raw = """{"result": "ok", "session_id": "fork-1", "permission_den
   """{"tool_name": "Bash", "tool_input": {"command": "rm x"}}]}""")
 
 proc start(): (Process, string) =
-  ## `hitl serve --port=0` on the coordinator fixture: the server and the
+  ## `paredros serve --port=0` on the coordinator fixture: the server and the
   ## line it printed first.
   try:
     putEnv("BROWSER", "true")   # the browser that opens nothing
-    let bin = $paths.getCurrentDir() & "/bin/hitl"
+    let bin = $paths.getCurrentDir() & "/bin/paredros"
     let p = startProcess(bin, args = ["--session=" & Sid.substr(0, 7), "serve", "--port=0"],
                          options = {poStdErrToStdOut})
     result = (p, p.outputStream.readLine())
@@ -49,7 +49,7 @@ proc request(meth, path: string; body = ""; host = ""; headers: openArray[string
     argv.add meth
   if token.len > 0:
     argv.add "-H"
-    argv.add "X-HITL-Token: " & token
+    argv.add "X-PAREDROS-Token: " & token
   for h in headers:
     argv.add "-H"
     argv.add h
@@ -118,7 +118,7 @@ block posts_need_the_token_and_our_origin:
 block the_built_pages:
   let index = request("GET", "/")
   assert index.status == 200 and "Work items" in index.body, "the index"
-  assert request("GET", "/hitl.js").body == readText("static/hitl.js"), "the script"
+  assert request("GET", "/paredros.js").body == readText("static/paredros.js"), "the script"
   assert request("GET", "/tips.json").json, "the code tips, as JSON"
   assert request("GET", "/i99.html").status == 404, "no such page"
 

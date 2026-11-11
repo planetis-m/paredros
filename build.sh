@@ -1,5 +1,5 @@
 #!/bin/sh
-# build.sh [FILE.nim [OUT]] [-- flags]: build hitl (default) or another program.
+# build.sh [FILE.nim [OUT]] [-- flags]: build paredros (default) or another program.
 # Uses the toolchain copy in nimcache/toolchain so no build ever writes into
 # the nimony checkout: plugins and compile-time consts ignore --stdcache
 # (bug-reports/108). Make the copy with:  ./build.sh --toolchain
@@ -13,7 +13,7 @@ if [ "$1" = "--toolchain" ]; then
   exit 0
 fi
 [ -x "$TC/bin/nimony" ] || { echo "no toolchain copy: run ./build.sh --toolchain" >&2; exit 1; }
-file=${1:-hitl.nim}; [ $# -gt 0 ] && shift
+file=${1:-paredros.nim}; [ $# -gt 0 ] && shift
 name=$(basename "$file" .nim)
 out=${1:-bin/$name}; [ $# -gt 0 ] && [ "$1" != "--" ] && shift
 [ "$1" = "--" ] && shift

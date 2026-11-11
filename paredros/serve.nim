@@ -218,12 +218,12 @@ proc refusal(s: Server; c: HttpConnection): Opt[Reply] =
     # Host, on every method, HEAD included (headers say what exists)
     result = some(bare(421))
   elif c.meth == tag(mPost) and (c.path notin Actions or
-      c.requestHeader("X-HITL-Token") != s.token or
+      c.requestHeader("X-PAREDROS-Token") != s.token or
       origin notin ["", "http://" & ours[0], "http://" & ours[1]]):
     result = some(bare(403))
 
 proc file(s: Server; path: string): Reply =
-  ## A built file (a page, hitl.css, hitl.js, tips.json) with its content type.
+  ## A built file (a page, paredros.css, paredros.js, tips.json) with its content type.
   # GAP: no Last-Modified and never a 304, as Python's SimpleHTTPRequestHandler
   # sends, and a path that climbs above the pages (`/../x`) is a 400 before
   # it gets here, not a 404, because std/httpserver has no file handler and
@@ -252,7 +252,7 @@ proc page(s: Server; c: HttpConnection): Result[Reply, string] =
     # <script src> passes the Host check, but its browser says cross-site
     # (no header at all: an old browser, or curl)
     let site = c.requestHeader("Sec-Fetch-Site")
-    let js = "window.HITL={token:" & quote(s.token) & "};"
+    let js = "window.PAREDROS={token:" & quote(s.token) & "};"
     result = if c.countRequestHeader("Sec-Fetch-Site") > 0 and site notin ["same-origin", "none"]:
                ok[Reply, string](bare(403))
              else:
@@ -371,7 +371,7 @@ proc handle(c: sink HttpConnection; s: Server) {.passive.} =
           reply(c, r.get(bare(500)), s.tags)
         else:
           # as an exception in Python's handler: no answer, the reason on stderr
-          stderr.writeLine "hitl: " & r.error("")
+          stderr.writeLine "paredros: " & r.error("")
           c.close()
     except ErrorCode:
       c.close()   # the client went away
@@ -406,7 +406,7 @@ proc run*(s: Server) =
   # GAP: listens on every interface, not on 127.0.0.1 only (the Host check
   # and the token still hold), because std/httpserver's listenHttp takes no
   # address (bug-reports/113-listenhttp-cannot-choose-listen-address).
-  # GAP: a port in use stops hitl with a failed assertion, not a message,
+  # GAP: a port in use stops paredros with a failed assertion, not a message,
   # because std/ioring's listenTcp asserts that bind succeeds
   # (bug-reports/109-listentcp-asserts-on-busy-port).
   var listener = listenHttp(uint16(s.port), s.tags)

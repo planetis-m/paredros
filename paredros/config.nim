@@ -20,11 +20,11 @@ proc defaults*(): Config =
          compare: none[Compare]())
 
 proc load*(cwd: string; path = ""): Result[Config, string] =
-  ## The config in `path` (--config), else .hitl.json in the session's working
+  ## The config in `path` (--config), else .paredros.json in the session's working
   ## directory (cwd "" is the current one), else the defaults. The error says
   ## why a file is refused.
   let p = if path.len > 0: path
-          else: (if cwd.len > 0: cwd else: ".") & "/.hitl.json"
+          else: (if cwd.len > 0: cwd else: ".") & "/.paredros.json"
   if not fileExists(p):
     return if path.len > 0: err[Config, string]("no config file " & p)
            else: ok[Config, string](defaults())

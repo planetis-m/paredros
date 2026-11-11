@@ -2,7 +2,7 @@
 ## and the briefs, all HTML through render.nim. Built around the decision
 ## briefs and the code; no logistics (PRs, branches, pushes, timelines). The
 ## design is frozen in DESIGN.md; change it there first. The pages share
-## static/hitl.css and static/hitl.js, which `build` copies beside them.
+## static/paredros.css and static/paredros.js, which `build` copies beside them.
 
 import std/[syncio, strutils, os, paths, dirs, tables, algorithm, json, rex, times, unicode,
             opt, result]
@@ -26,24 +26,24 @@ proc button(attrs: openArray[Attr]; children: openArray[Html]): Html =
   result = tag("button", all, children)
 
 let chatHtml = join([
-  tag("button", [attr("id", "hitl-ask"), attr("class", "filled"), attr("type", "button"),
+  tag("button", [attr("id", "paredros-ask"), attr("class", "filled"), attr("type", "button"),
                  attr("title", "Ctrl+Shift+A")], bubble, "Ask about this"),
-  tag("button", [attr("id", "hitl-open"), attr("type", "button"),
+  tag("button", [attr("id", "paredros-open"), attr("type", "button"),
                  attr("title", "Ctrl+Shift+A asks about selected text")], bubble, "Ask"),
-  tag("aside", [attr("id", "hitl-chat"), attr("aria-labelledby", "hitl-title"),
+  tag("aside", [attr("id", "paredros-chat"), attr("aria-labelledby", "paredros-title"),
                 attr("aria-hidden", "true")],
-      tag("header", [], tag("h2", [attr("id", "hitl-title")], "Chat"),
-          tag("button", [attr("id", "hitl-close"), attr("type", "button"),
+      tag("header", [], tag("h2", [attr("id", "paredros-title")], "Chat"),
+          tag("button", [attr("id", "paredros-close"), attr("type", "button"),
                          attr("aria-label", "Close chat")], svg(Cross, 18))),
-      tag("div", [attr("id", "hitl-log"), attr("role", "log"), attr("aria-live", "polite")]),
-      tag("div", [attr("id", "hitl-form")],
-          tag("div", [attr("id", "hitl-qbox")], tag("blockquote", [attr("id", "hitl-quote")]),
-              tag("button", [attr("id", "hitl-unquote"), attr("type", "button"),
+      tag("div", [attr("id", "paredros-log"), attr("role", "log"), attr("aria-live", "polite")]),
+      tag("div", [attr("id", "paredros-form")],
+          tag("div", [attr("id", "paredros-qbox")], tag("blockquote", [attr("id", "paredros-quote")]),
+              tag("button", [attr("id", "paredros-unquote"), attr("type", "button"),
                              attr("aria-label", "Remove quote")], svg(Cross, 16))),
-          tag("label", [attr("class", "sr"), attr("for", "hitl-q")], "Your question"),
-          tag("textarea", [attr("id", "hitl-q"), attr("placeholder", "Ask a question")]),
+          tag("label", [attr("class", "sr"), attr("for", "paredros-q")], "Your question"),
+          tag("textarea", [attr("id", "paredros-q"), attr("placeholder", "Ask a question")]),
           tag("div", [attr("class", "row")], tag("span", [], "Ctrl+Enter to send"),
-              tag("button", [attr("id", "hitl-send"), attr("class", "filled"),
+              tag("button", [attr("id", "paredros-send"), attr("class", "filled"),
                              attr("type", "button")], "Send"))))])
   ## The chat: its two open buttons and its panel, on every page.
 
@@ -58,11 +58,11 @@ proc page*(title: string; body: Html; wide = false; item = none[int]();
         tag("meta", [attr("name", "viewport"),
                      attr("content", "width=device-width,initial-scale=1")]),
         tag("title", [], title), head,
-        tag("link", [attr("rel", "stylesheet"), attr("href", "hitl.css")])),
+        tag("link", [attr("rel", "stylesheet"), attr("href", "paredros.css")])),
     tag("body", [attr("data-item", if item.isSome: $item.get(0) else: "")],
         tag("main", [attr("class", kind)], body),
         chatHtml, tag("script", [attr("src", "config.js")]),
-        tag("script", [attr("src", "hitl.js")])))])
+        tag("script", [attr("src", "paredros.js")])))])
 
 proc plural(n: int; word: string): string =
   ## "1 file", "2 files".
@@ -130,7 +130,7 @@ proc qact(cfg: Config): Html =
 
 let qstate = tag("div", [attr("class", "qstate"), attr("aria-live", "polite"),
                           attr("hidden", true)])
-  ## Where hitl.js says what became of a decision.
+  ## Where paredros.js says what became of a decision.
 
 proc optButton(o: string; mark = false; why = ""): Html =
   ## One option of a decision, a radio; `mark` says it is the suggested one,
@@ -144,7 +144,7 @@ proc optButton(o: string; mark = false; why = ""): Html =
 proc decisionHtml(e: Entry; item: Opt[int]; reference: string; cfg: Config;
                    inputs = ""): Html =
   ## The question, then the options as an inset group ending in a field for
-  ## your own answer (hitl.js: li.q[data-did], button.opt[data-opt], li.own,
+  ## your own answer (paredros.js: li.q[data-did], button.opt[data-opt], li.own,
   ## .qstate, .qact), then the spec line, the source and the two chat helpers.
   ## `reference` is the item's code tip, `inputs` its brief's hash.
   let k = e.recommended   # the suggested option; none when it is not one of them
@@ -253,14 +253,14 @@ proc itemPage(r: WorkItem; d: Work; prev, next: Opt[int];
   var acts = Html("")
   if cfg.compare.isSome:
     let cmp = cfg.compare.get(Compare())
-    acts = tag("div", [attr("class", "hitl-acts")],
+    acts = tag("div", [attr("class", "paredros-acts")],
                tag("button", [attr("class", "soft"), attr("type", "button"),
                               attr("data-ask", expand(cmp.prompt, state("scratch", d.session))),
                               attr("hidden", true)], bubble, cmp.label))
   let summary = if r.brief.isSome:
                   tag("p", [attr("class", "summary")], inline(r.brief.get(Brief()).summary))
                 else: tag("p", [attr("class", "summary nobrief")], "No brief yet. Run ",
-                          tag("code", [], "hitl brief " & $r.n), ".")
+                          tag("code", [], "paredros brief " & $r.n), ".")
   let body = join([tag("nav", [attr("class", "top"), attr("aria-label", "Items")],
                        tag("a", [attr("href", "index.html")], back, "All items")),
                    tag("header", [attr("class", "head")],
@@ -331,13 +331,13 @@ proc indexPage(d: Work): Html =
   # Where the data comes from and when it was read is status, not content: one
   # quiet line at the end, not above the title.
   let empty = if reps.len == 0: tag("p", [attr("class", "nocode")], "No work items yet. Run ",
-                                    tag("code", [], "hitl brief"), ".")
+                                    tag("code", [], "paredros brief"), ".")
               else: Html("")
   let body = join([tag("h1", [], "Work items"), empty,
-                   tag("section", [attr("id", "hitl-decisions"), attr("hidden", true),
-                                   attr("aria-labelledby", "hitl-dh")],
+                   tag("section", [attr("id", "paredros-decisions"), attr("hidden", true),
+                                   attr("aria-labelledby", "paredros-dh")],
                        tag("div", [attr("class", "dh")],
-                           tag("h2", [attr("id", "hitl-dh")], "Your decisions")),
+                           tag("h2", [attr("id", "paredros-dh")], "Your decisions")),
                        tag("ul"), tag("p", [attr("class", "dsent"), attr("hidden", true)])),
                    join(board), tag("p", [attr("class", "built")], updated(d))])
   result = page("Work items", body, wide = true)
