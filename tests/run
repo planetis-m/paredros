@@ -1,14 +1,17 @@
 #!/bin/sh
 # tests/run [NAME...]: build hitl, then build and run each tests/t*.nim (or the
-# named ones), in debug and in release. Run from anywhere.
+# named ones), in debug and in release. Run from anywhere. hitl.nim and
+# tests/fakeclaude.nim are built only once they exist (the port adds them later).
 set -e
 cd "$(dirname "$0")/.."
 names=${*:-$(ls tests/t*.nim | sed 's|tests/||; s|\.nim$||')}
+[ ! -f tests/fakeclaude.nim ] ||
 ./build.sh tests/fakeclaude.nim nimcache/tests/bin/claude > nimcache/build-fakeclaude.log 2>&1 ||
   { grep -v '^\[' nimcache/build-fakeclaude.log; exit 1; }
 fails=0
 for mode in debug release; do
   flags=""; [ $mode = release ] && flags="-d:release"
+  [ ! -f hitl.nim ] ||
   ./build.sh hitl.nim bin/hitl -- $flags > nimcache/build-hitl.log 2>&1 || { cat nimcache/build-hitl.log; exit 1; }
   for t in $names; do
     if ./build.sh tests/$t.nim nimcache/tests/$mode/$t -- $flags > nimcache/build-$t.log 2>&1 &&

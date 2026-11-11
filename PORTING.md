@@ -21,7 +21,7 @@ only from the ones above it, never below, and never inside a proc.
 
 | Python | Nimony | What |
 |---|---|---|
-| `state.py` | `hitl/state.nim` | hitl's own files: `state()`, `writeAtomic`, companion fork ids, `HitlError` |
+| `state.py` | `hitl/state.nim` | hitl's own files: `state()`, `writeAtomic`, companion fork ids |
 | `session.py` | `hitl/session.nim` | transcripts (the only module that knows their format), agents, sessions, `run()` for child processes, `git()`, `gitWrites` |
 | `config.py` | `hitl/config.nim` | the config as a value: `load(cwd, path)`, `expand` |
 | `render.py` | `hitl/render.nim` | all HTML: `tag()` escaping by default, `inline`, `markdown`, `diff` |
@@ -31,7 +31,7 @@ only from the ones above it, never below, and never inside a proc.
 | `drafts.py` | `hitl/drafts.nim` | saved decisions: decide, withdraw, check, delivery |
 | `companion.py` | `hitl/companion.nim` | the companion's setup: restricted mode, profile, prompt, dirs |
 | `serve.py` | `hitl/serve.nim` | the server: pages, `/config.js`, the five POST actions, the chat |
-| `hitl.py` | `hitl.nim` | the CLI: `brief`, `serve`; turns `HitlError` into an exit message |
+| `hitl.py` | `hitl.nim` | the CLI: `brief`, `serve`; prints an error result as an exit message |
 
 ## How the code is written
 
@@ -47,8 +47,20 @@ only from the ones above it, never below, and never inside a proc.
   it does and returns. Inside, a `#` comment says *why* at every step that is
   not obvious, the way the Python does. Section headers between groups of
   procs, like the Python's `# ---- name` lines.
-- **Errors.** One exception type, `HitlError` (state.nim), raised by every
-  layer; only `hitl.nim` turns it into `hitl: <message>` and exit 1.
+- **Errors: what Nimony offers, no exception types of our own.** No `ref
+  object of Exception`, no hierarchy. Follow the `nimony-error-handling` skill. A
+  failure the user is told about (no session matches, a bad config file, an
+  unreadable ledger, no working directory) is a value: the routine returns
+  `Result[T, string]` with the message, and each layer passes it up; only
+  `hitl.nim` prints `hitl: <message>` and exits 1. Absence is `Opt[T]`.
+  Stdlib I/O raises the system `ErrorCode`: catch it at the first routine
+  that has an answer, and mark a routine `{.raises.}` only where the failure
+  really must cross layers.
+- **Skills.** The Nimony skills in `~/.local/share/nyx/skills/` are the
+  guide for writing the code: read `nimony-error-handling`,
+  `nimony-nim2-differences`, `nim-style-guide`, `nim-doc-comments`,
+  `nim-code-organization`, `nim-string-parsing`, `nim-testing` and
+  `nim-porting` before writing, and any other one that fits the task.
 - **Standard library only.** No kroki, no hashi, no other third-party code:
   std/json, std/httpserver, std/osproc, std/rex, std/paths, and so on.
 - **No workarounds.** When the standard library lacks a function or has a bug,
@@ -80,7 +92,7 @@ only from the ones above it, never below, and never inside a proc.
 
 | Layer | Modules | State |
 |---|---|---|
-| 1 | state, session, config | to do |
+| 1 | state, session, config | done |
 | 1 | render | to do |
 | 2 | brief, work | to do |
 | 3 | drafts, companion | to do |
@@ -95,3 +107,6 @@ bug, left for another day.
 
 | Where | What is inaccurate | Because |
 |---|---|---|
+| `session.run` | a child that keeps stdout or stderr open is not stopped at the timeout, only once it closes them (ProcessTests' timeout test passes, after 30 s); a child that fills its stderr pipe while stdout is read waits for ever | std/osproc has no `communicate` (bug-reports/120-osproc-has-no-communicate): stdout, then stderr are read to their end, then `waitForExit` gets the time left |
+| `session.run` | a program that cannot be found or started runs and exits 127 instead of failing to start | std/osproc's fork + execve reports a failed exec as exit 127 |
+| `config.load` | why a file is not JSON is said in std/json's words, not Python's | that is the message std/json gives |
