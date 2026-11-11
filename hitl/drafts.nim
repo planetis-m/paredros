@@ -4,8 +4,7 @@
 ## brief before its text leaves hitl, and delivered when the human pastes its
 ## text, which ends `(d<N>, approved by me)`, into the session.
 
-import std/[syncio, strutils, os, paths, dirs, files, algorithm, tables, json, opt, result,
-            unicode]
+import std/[syncio, strutils, os, paths, dirs, files, algorithm, tables, json, opt, result]
 import state, session, brief, work
 
 type
@@ -42,23 +41,6 @@ proc number(stem: string): int =
   result = -1
   if stem.len > 1 and stem[0] == 'd' and allCharsInSet(stem.substr(1), Digits):
     result = try: parseInt(stem.substr(1)) except: -1
-
-proc collapse(text: string): string =
-  ## The words of text joined by single spaces (Python's " ".join(text.split())).
-  # GAP: \x1c..\x1f do not separate words, because std/unicode's white space
-  # list leaves out the separators Python's str.split() counts.
-  var words: seq[string] = @[]
-  for w in unicode.splitWhitespace(text):
-    if w.len > 0: words.add w
-  result = words.join(" ")
-
-proc quote(s: string): string =
-  ## s as a JSON string.
-  # GAP: control characters other than \b \f \n \r \t are written raw, which
-  # is not JSON, because std/json's `$` does not escape them
-  # (bug-reports/104-json-dollar-control-chars-unescaped).
-  var t = toJson(s)
-  result = $t
 
 proc orNull(s: string): string =
   ## s as a JSON string; null when it is "".

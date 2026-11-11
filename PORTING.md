@@ -21,7 +21,7 @@ only from the ones above it, never below, and never inside a proc.
 
 | Python | Nimony | What |
 |---|---|---|
-| `state.py` | `hitl/state.nim` | hitl's own files: `state()`, `writeAtomic`, companion fork ids |
+| `state.py` | `hitl/state.nim` | hitl's own files: `state()`, `writeAtomic`, companion fork ids, `appDir`, and the shared `collapse` and `quote` |
 | `session.py` | `hitl/session.nim` | transcripts (the only module that knows their format), agents, sessions, `run()` for child processes, `git()`, `gitWrites` |
 | `config.py` | `hitl/config.nim` | the config as a value: `load(cwd, path)`, `expand` |
 | `render.py` | `hitl/render.nim` | all HTML: `tag()` escaping by default, `inline`, `markdown`, `diff` |
@@ -96,7 +96,7 @@ only from the ones above it, never below, and never inside a proc.
 | 1 | render | done |
 | 2 | brief, work | done |
 | 3 | drafts, companion | done |
-| 4 | pages | to do |
+| 4 | pages | done |
 | 4 | serve, CLI | to do |
 | 5 | consistency pass, docs | to do |
 
@@ -123,3 +123,7 @@ bug, left for another day.
 | `work.epoch` | only `YYYY-MM-DDTHH:MM:SS`, with a fraction, then `Z`, `±HH:MM` or no zone, is read (else 0, as for bad input), and a time with no zone is taken as UTC, not local time | std/times has no parse (bug-reports/119-times-cannot-parse-a-date) |
 | `drafts` (`allDrafts`, `decide`, `withdraw`) | a draft number is ASCII digits only: `d٣.json` is no draft (Python's `\d` and `int()` take any Unicode digit), nor is one too big for an int | std/unicode has no digit test |
 | `drafts.decide` | a decision id with non-ASCII letters or digits is refused (Python's `\w` takes them) | std/unicode has no digit test, std/rex's `\w` is ASCII |
+| `pages.untimed` (the "From" line) | a clock time right after `:`, `.`, `/` or `-` (`x-10:01`) or right before `:` (`1:23:4` loses `1:23`) is taken out; `\s` and `\d` are ASCII | std/rex has no lookaround and no Unicode classes: `(?<![\w:./-])` and `(?![\w:])` are `\b` |
+| `pages.untimed` | of separators in a row only the first is taken out: `(10:01, 10:05)` leaves `,)` where Python leaves `)` (seen on the test fixtures, not on the real session) | std/rex has no lookahead: `([(,;])\s*(?=[,;)])` is written `[(,;]\s*([,;)])`, keeping the separator it matched |
+| `pages.updated` | a project name whose first letter's capital is two letters (`ß`) gets one | std/unicode maps one rune to one rune |
+| `pages.build`, `pages.builtTips` | a page or tips.json item number is ASCII digits only: `i٣.html` is no page and is never deleted | std/unicode has no digit test |

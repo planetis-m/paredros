@@ -1,7 +1,7 @@
 ## hitl's own files: where each session's state lives, how files are written,
-## and the companion forks.
+## the companion forks, and the few text helpers every layer shares.
 
-import std/[syncio, strutils, os, paths, dirs, files, envvars]
+import std/[syncio, strutils, os, paths, dirs, files, envvars, json, unicode]
 import std/crypto/sysrand
 
 proc outDir*(): string =
@@ -21,12 +21,44 @@ proc writeAtomic*(p, text: string) {.raises.} =
   writeFile(tmp, text)
   moveFile(path(tmp), path(p))
 
+proc appDir*(): string =
+  ## The repository the binary was built in: the nearest directory above it
+  ## that holds companion.md (and static/); "" when there is none.
+  result = ""
+  for dir in parentDirs(getAppDir()):
+    if result.len == 0 and fileExists(dir & "/companion.md"): result = dir
+
+# ---------------------------------------------------------------------- text
+
+proc collapse*(text: string): string =
+  ## The words of text joined by single spaces (Python's " ".join(text.split())).
+  # GAP: \x1c..\x1f do not separate words, because std/unicode's white space
+  # list leaves out the separators Python's str.split() counts.
+  var words: seq[string] = @[]
+  for w in unicode.splitWhitespace(text):
+    if w.len > 0: words.add w
+  result = words.join(" ")
+
+proc quote*(s: string): string =
+  ## s as a JSON string.
+  # GAP: control characters other than \b \f \n \r \t are written raw, which
+  # is not JSON, because std/json's `$` does not escape them
+  # (bug-reports/104-json-dollar-control-chars-unescaped).
+  var t = toJson(s)
+  result = $t
+
+proc quote*(list: seq[string]): string =
+  ## list as a JSON array of strings.
+  var parts: seq[string] = @[]
+  for s in list: parts.add quote(s)
+  result = "[" & parts.join(", ") & "]"
+
 # ---------------------------------------------------------------- companions
 
 proc companionIds*(): seq[string] =
   ## The session ids of the companion forks made so far.
   try:
-    result = readFile(outDir() & "/companions").splitWhitespace()
+    result = strutils.splitWhitespace(readFile(outDir() & "/companions"))
   except:
     result = @[]
 

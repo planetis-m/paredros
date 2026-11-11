@@ -276,15 +276,6 @@ proc askModel*(prompt, cwd, model, schema: string; timeout = 900): Result[JsonNo
   result = if got.kind == JObject: ok[JsonNode, string](got)
            else: err[JsonNode, string]("the answer is not in the schema")
 
-proc collapse(text: string): string =
-  ## The words of text joined by single spaces (Python's " ".join(text.split())).
-  # GAP: \x1c..\x1f do not separate words, because std/unicode's white space
-  # list leaves out the separators Python's str.split() counts.
-  var words: seq[string] = @[]
-  for w in unicode.splitWhitespace(text):
-    if w.len > 0: words.add w
-  result = words.join(" ")
-
 proc short*(text: string; n = 90): string =
   ## The text on one line, its white space collapsed, cut to n characters
   ## with an ellipsis.
@@ -297,20 +288,6 @@ proc decisionId*(question: string): string =
   var h = newSha1State()
   h.update(collapse(question))
   result = toHex(h.finalize()).substr(0, 9)
-
-proc quote(s: string): string =
-  ## s as a JSON string.
-  # GAP: control characters other than \b \f \n \r \t are written raw, which
-  # is not JSON, because std/json's `$` does not escape them
-  # (bug-reports/104-json-dollar-control-chars-unescaped).
-  var t = toJson(s)
-  result = $t
-
-proc quote(list: seq[string]): string =
-  ## list as a JSON array of strings.
-  var parts: seq[string] = @[]
-  for s in list: parts.add quote(s)
-  result = "[" & parts.join(", ") & "]"
 
 proc writeJson*(p, json: string) {.raises.} =
   ## Writes JSON text to p whole, making its directory first. Raises the

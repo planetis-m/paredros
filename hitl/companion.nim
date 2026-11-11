@@ -3,7 +3,7 @@
 ## permission profile that allows reading only, its system prompt
 ## (companion.md) and the directories it may read. serve.nim runs it.
 
-import std/[syncio, strutils, os, paths, dirs, json, opt, result]
+import std/[syncio, strutils, os, paths, dirs, opt, result]
 import state, session, config
 
 const
@@ -17,27 +17,6 @@ const
     ## The companion's tools. With --restricted and -p, everything the
     ## profile's allow list does not name is refused, and the user's and the
     ## project's settings files are ignored.
-
-proc quote(s: string): string =
-  ## s as a JSON string.
-  # GAP: control characters other than \b \f \n \r \t are written raw, which
-  # is not JSON, because std/json's `$` does not escape them
-  # (bug-reports/104-json-dollar-control-chars-unescaped).
-  var t = toJson(s)
-  result = $t
-
-proc quote(list: seq[string]): string =
-  ## list as a JSON array of strings.
-  var parts: seq[string] = @[]
-  for s in list: parts.add quote(s)
-  result = "[" & parts.join(", ") & "]"
-
-proc appDir(): string =
-  ## The repository the binary was built in: the nearest directory above it
-  ## that holds companion.md; "" when there is none.
-  result = ""
-  for dir in parentDirs(getAppDir()):
-    if result.len == 0 and fileExists(dir & "/companion.md"): result = dir
 
 proc setup*(sid, spath: string;
             cfg = none[Config]()): Result[(string, seq[string]), string] =
