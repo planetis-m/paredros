@@ -1,7 +1,6 @@
-## Work items (test_paredros.py WorkItemTests): sources, commit discovery, current
-## code, and the ledger across runs, with the fake `claude` answering. The
-## parts of these tests that build pages or save decisions come with those
-## layers.
+## Work items: sources, commit discovery, current code, and the ledger across
+## runs, with the fake `claude` answering. Pages and saved decisions are
+## tested in tpages and tdrafts.
 
 import std/[syncio, strutils, paths, dirs, assertions, opt, result, tables]
 import fixtures
@@ -19,7 +18,7 @@ proc titles(led: Ledger): seq[(int, string)] =
   result = @[]
   for it in led.items: result.add (it.id, it.title)
 
-block multi_agent_session:  # WorkItemTests.test_multi_agent_session
+block multi_agent_session:
   resetState()
   let src = sources(spathOf(Sid))
   assert src.agents.len == 2, "two agents"
@@ -39,7 +38,7 @@ block multi_agent_session:  # WorkItemTests.test_multi_agent_session
   assert "# Agent: Fix the field default crash" in calls[1], "the brief sees the reports"
   assert "+proc a() =" in calls[1], "and the code"
 
-block single_agent_session:  # WorkItemTests.test_single_agent_session
+block single_agent_session:
   resetState()
   let src = sources(spathOf(Solo))
   assert src.agents.len == 0, "no agents"
@@ -60,7 +59,6 @@ block single_agent_session:  # WorkItemTests.test_single_agent_session
   assert render.turns.len == 2, "both turns"
 
 block a_rebased_commit_is_the_sessions_and_its_code_is_one_diff:
-  # WorkItemTests.test_a_rebased_commit_is_the_sessions_and_its_code_is_one_diff:
   # the session commits a fix, rebases it onto upstream, then commits a follow-up:
   # the item's code is both, from upstream to the follow-up
   let rb = tmp() & "/rebased"
@@ -93,8 +91,7 @@ block a_rebased_commit_is_the_sessions_and_its_code_is_one_diff:
   assert "up.txt" notin code.diff, "upstream's commit is the base, not the session's"
 
 block commits_are_matched_to_the_call_that_made_them:
-  # WorkItemTests.test_commits_are_matched_to_the_call_that_made_them: one
-  # repository: a long-running commit call, another session's commit right
+  # one repository: a long-running commit call, another session's commit right
   # after a call, and an agent's worktree that was deleted after it committed
   let rp = tmp() & "/calls"
   try: createDir(path(rp)) except: quit "no " & rp
@@ -126,8 +123,7 @@ block commits_are_matched_to_the_call_that_made_them:
   assert cms[0].agent.isNone and cms[1].agent.get("") == "agent:a9", "each with its maker"
 
 block page_identity_survives_new_material_and_rewritten_briefs:
-  # WorkItemTests.test_page_identity_survives_new_material_and_rewritten_briefs,
-  # without the saved decision and the page (they come with drafts and pages)
+  # without the saved decision and the page (they are in tdrafts and tpages)
   resetState()
   let spath = spathOf(Solo)
   let answer = """{"summary": "s", "open_decisions": [{"question": "Escape both?", """ &
@@ -156,7 +152,6 @@ block page_identity_survives_new_material_and_rewritten_briefs:
   assert calls.len == 3, "the split and two briefs, rewritten"
 
 block material_the_split_dropped_is_offered_again:
-  # WorkItemTests.test_material_the_split_dropped_is_offered_again
   resetState()
   discard fake([("Parser accepts empty input", @["C1", "T1"])])   # says nothing of C2
   discard runBrief(Solo)

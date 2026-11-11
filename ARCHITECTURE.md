@@ -1,13 +1,11 @@
 # paredros: architecture
 
-The Nimony port of paredros. The behaviour, the data model and the rules are the
-Python version's (`~/Projects/hitl/ARCHITECTURE.md`, which also keeps the
-review findings that led to them); this file says the same for the Nimony
-code and marks where it differs. `DESIGN.md` governs the pages (look,
-strings, behaviour); this file governs everything else; `PORTING.md` holds
-the port's conventions and its Gaps: what the standard library cannot match
-yet. To change what this file settles, get the user's approval first and
-update it in the same commit.
+paredros is written in Nimony on its standard library alone. This file
+settles its behaviour, data model and rules. `DESIGN.md` governs the pages
+(look, strings, behaviour); this file governs everything else; the README's
+Limitations section lists what the standard library cannot do yet. To change
+what this file settles, get the user's approval first and update it in the
+same commit.
 
 ## 1. Purpose and non-goals
 
@@ -30,7 +28,7 @@ Non-goals:
   them. They never know paredros exists.
 - Writing to repositories, worktrees, transcripts, PRs or any upstream.
 - Being a product: no accounts, no multi-user, no remote access (but see
-  6.3: the Nimony server cannot yet refuse the network), no database, no
+  6.3: the server cannot yet refuse the network), no database, no
   plugins; the one build step is `./build.sh`.
 - Tracking logistics (PRs, branches, CI) on the pages.
 
@@ -40,12 +38,12 @@ These were decided with the user. Reopening one needs the user's approval.
 
 | Topic | Decision |
 |---|---|
-| Dependencies | Nimony and its standard library, `git` and the `claude` CLI. No third-party Nimony code (the first port used kroki and hashi; the redo removed them), no database or npm. Where the standard library falls short, the code accepts the inaccuracy and records it (PORTING.md, Gaps). |
+| Dependencies | Nimony and its standard library, `git` and the `claude` CLI. No third-party Nimony code, no database or npm. Where the standard library falls short, the code accepts the inaccuracy and records it (README, Limitations). |
 | Model calls | All through `claude -p` on the user's subscription. No other vendor or API: decision APIs (OpenAI's Decisions API, TypeSafe's Jev) were evaluated and rejected because the tasks are generative, need tool use and run rarely. |
 | Structured output | Approved next step: `--json-schema` for the split and the brief, replacing regex JSON extraction. |
 | Server | A minimal std/httpserver server with a Host check, a per-run token and an Origin check, used only for acting features (companion chat, saving, re-checking, copying). Static file mode stays for reading. It should bind 127.0.0.1 only; it cannot yet (6.3). |
 | State | Plain files under `$XDG_STATE_HOME/paredros` (default `~/.local/state/paredros/`). |
-| Config | Per project, JSON (`.paredros.json`), read with std/json. Replaces `.paredros.toml`/`tomllib`. |
+| Config | Per project, JSON (`.paredros.json`), read with std/json. |
 | Agents | Never burdened (section 1). |
 | Precompute | Everything that can be computed ahead is computed ahead (briefs, spec lines, recommendations). The companion does only live work. |
 | UI | `DESIGN.md` is frozen and governs the pages. |
@@ -76,9 +74,9 @@ are no exception types.
 | `paredros/serve.nim` | The local server: serves the built pages, the token, and five POST actions that call `drafts`; holds the one companion conversation per run. Each connection runs on the thread pool; one question at a time goes to the companion. |
 | `paredros.nim` | The CLI (std/smartcli: `brief`, `serve`): picks the session, loads the config, turns an error result into an exit message. |
 | `companion.md` | The companion's system prompt (a template filled by `companion.setup`). |
-| `DESIGN.md` | The page design spec (a copy of the Python's). |
-| `static/paredros.css`, `static/paredros.js` | The pages' CSS and JS, copied beside the pages by `build` (copies of the Python's). |
-| `tests/` | `t<module>.nim` per module (the Python's `test_hitl.py`), `fixtures.nim` (throwaway git repositories and transcripts in a temp directory), `fakeclaude.nim` (a fake `claude` put first on PATH), `run`. |
+| `DESIGN.md` | The page design spec. |
+| `static/paredros.css`, `static/paredros.js` | The pages' CSS and JS, copied beside the pages by `build`. |
+| `tests/` | `t<module>.nim` per module, `fixtures.nim` (throwaway git repositories and transcripts in a temp directory), `fakeclaude.nim` (a fake `claude` put first on PATH), `run`. |
 | `build.sh` | Builds with a private copy of the Nimony toolchain in `nimcache/toolchain`. |
 
 Data flow:
@@ -134,8 +132,8 @@ come from git, never from the model.
 {"items":[{"id":1,"title":"Parser accepts empty input","sources":["turn:u1","commit:ab12..."]}],"seen":{"turn:u1":412,"commit:ab12...":0}}
 ```
 
-The port writes its JSON files on one line (std/json has no pretty printer)
-where the Python indents them; each reads the other's.
+paredros writes its JSON files on one line: std/json has no pretty printer.
+An indented file reads the same.
 
 - `id` is assigned by code (next free integer), never by the model, never
   reused, never renumbered.
@@ -332,9 +330,9 @@ be denied or left out of the available tools, not merely left unallowed.
 ### 6.3 Server
 
 - **Listens on every interface, not on 127.0.0.1 only**, on a fixed port
-  (default 8765). The Python binds 127.0.0.1; std/httpserver's `listenHttp`
-  takes no address (bug-reports/113), and the user keeps this as a recorded
-  gap. So the server is reachable from the network: the Host check below
+  (default 8765). std/httpserver's `listenHttp` takes no address
+  (bug-reports/113), and the user keeps this as a recorded limitation. So
+  the server is reachable from the network: the Host check below
   stops browsers, not a client on the network, which can send its own Host,
   read the token from `/config.js`, read the pages and post decisions or
   questions, which run `claude` as the user. Do not run `paredros serve` on a
@@ -411,7 +409,7 @@ and a migration.
 
 | What | Budget |
 |---|---|
-| Nimony, excluding tests and page CSS/JS | follows the Python's module for module (about 3,350 lines now); a module grows only with its Python module |
+| Nimony, excluding tests and page CSS/JS | about 3,350 lines now; a module grows only with a feature the user approved |
 | Page CSS and JS | 700 lines together |
 | Config keys | the current 4 (`spec`, `reader`, `users`, `compare`) |
 | Model runs | one split per `paredros brief`, one brief per changed item; none on page view |
@@ -424,7 +422,7 @@ Prefer deleting code to adding it.
 
 A key is added only when the project, not paredros, holds the answer and no
 generic default works. Then:
-1. Add it to the Python first, then here: to `defaults()` with a default that
+1. Add it to `defaults()` with a default that
    leaves behaviour unchanged, and validate it in `config.load` (unknown keys
    stay refused).
 2. Read it in exactly one place. It changes data (text in a prompt, a label,
@@ -436,10 +434,10 @@ generic default works. Then:
 
 - Transcript-format knowledge stays in `session.nim`; git goes through
   `session.git()`.
-- Behaviour changes are made in the Python first and ported; the two stay
-  byte for byte the same on real sessions where the standard library allows.
-- What the standard library cannot do yet is a GAP comment and a row in
-  PORTING.md, never a workaround.
+- What the standard library cannot do yet is a `# GAP:` comment (what is
+  inaccurate, and the missing piece or bug report that causes it) and a line
+  in the README's Limitations, never a workaround: the code is the natural
+  code with what the library provides, and the inaccuracy is accepted.
 - State paths are computed in one helper, not rebuilt inline.
 - New behaviour comes with a test on fixtures and the fake `claude`; tests never
   touch the real state directory or clipboard.

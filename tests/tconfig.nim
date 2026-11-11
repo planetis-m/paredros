@@ -1,5 +1,5 @@
-## The project config (test_paredros.py ConfigTests). The asserts on the brief's
-## prompt come with brief.nim; the script test comes with the CLI.
+## The project config. The asserts on the brief's prompt are in tbrief; the
+## CLI's are in tcli.
 
 import std/[strutils, envvars, assertions, opt, result]
 import fixtures
@@ -7,7 +7,7 @@ import ../paredros/config
 
 setUp()
 
-block defaults_without_a_file:  # ConfigTests.test_defaults_without_a_file
+block defaults_without_a_file:
   let cfg = load(tmp() & "/nowhere").get(Config(reader: "x"))
   let d = defaults()
   assert cfg.spec == d.spec and cfg.reader == d.reader and cfg.users == d.users, "the defaults"
@@ -15,7 +15,7 @@ block defaults_without_a_file:  # ConfigTests.test_defaults_without_a_file
   assert d.spec == "" and d.reader == "a developer of this project" and
     d.users == "the project's users", "the default values"
 
-block the_nimony_example:  # ConfigTests.test_the_nimony_example
+block the_nimony_example:
   let cfg = load("", example()).get(Config())
   assert cfg.spec == "doc/language.md", "spec"
   let c = cfg.compare.get(Compare())
@@ -23,7 +23,7 @@ block the_nimony_example:  # ConfigTests.test_the_nimony_example
   assert expand(c.allow[1], "/s") == getEnv("HOME") & "/Projects/Nim/bin/nim r --nimcache:/s/cache",
     "{home} and {scratch} are expanded"
 
-block a_json_file_beside_the_session:  # ConfigTests.test_a_json_file_beside_the_session
+block a_json_file_beside_the_session:
   let d = tmp() & "/cfgdir"
   writeText(d & "/.paredros.json",
             """{"users": "people who type", "compare": {"label": "L", "prompt": "P"}}""")
@@ -32,7 +32,7 @@ block a_json_file_beside_the_session:  # ConfigTests.test_a_json_file_beside_the
   assert cfg.compare.isSome and cfg.compare.get(Compare(allow: @["x"])).allow.len == 0,
     "allow defaults to none"
 
-block bad_files_are_refused:  # ConfigTests.test_bad_files_are_refused
+block bad_files_are_refused:
   let p = tmp() & "/bad.json"
   for text in ["""{"spek": "x"}""", """{"compare": {"label": "x"}}""", """{"spec": """, "[]",
                """{"compare": [1]}""", """{"compare": {"label": "x", "prompt": "y", "run": "z"}}"""]:

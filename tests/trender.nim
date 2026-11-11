@@ -1,4 +1,4 @@
-## HTML, escaped by default (test_paredros.py RenderTests).
+## HTML, escaped by default.
 
 import std/[strutils, assertions, rex, opt]
 import ../paredros/render
@@ -52,13 +52,13 @@ const Markdown = [  # (source, HTML): the subset, and what stays as written
    "<blockquote><p><strong>x</strong> and <code>y</code></p>\n<ul><li>item</li></ul></blockquote>"),
 ]
 
-block markdown_subset:  # RenderTests.test_markdown_subset
+block markdown_subset:
   for (src, want) in Markdown:
     let got = $markdown(src)
     # a table cell case names only the cells
     assert (if want.startsWith("<td>"): want in got else: got == want), src & " -> " & got
 
-block text_is_escaped_unless_it_is_markup:  # RenderTests.test_text_is_escaped_unless_it_is_markup
+block text_is_escaped_unless_it_is_markup:
   let p = tag("p", [attr("title", "\"x\""), attr("hidden", true), attr("id", none[string]())],
               "<b>", tag("i", [], "&"))
   assert $p == "<p title=\"&quot;x&quot;\" hidden>&lt;b&gt;<i>&amp;</i></p>",
@@ -67,7 +67,7 @@ block text_is_escaped_unless_it_is_markup:  # RenderTests.test_text_is_escaped_u
   assert $tag("td", [], 0) == "<td>0</td>", "a number"
 
 type Diffed = object
-  ## What a rendered diff shows (RenderTests.diffed).
+  ## What a rendered diff shows.
   n: int                          # files
   paths: seq[string]              # the paths of the shown files
   stats: seq[(string, string)]    # each file's (added, removed)
@@ -80,7 +80,7 @@ let
   statRe = re"<ins>([^<]*)</ins>\ <del>([^<]*)</del>"
 
 proc groups(s: string; r: Regex): seq[seq[string]] =
-  ## The groups of every match of r in s, left to right (Python's findall).
+  ## The groups of every match of r in s, left to right.
   result = @[]
   var caps: seq[Capture] = @[]
   var (a, b) = findBounds(s, r, caps, 0)
@@ -100,7 +100,7 @@ proc diffed(d: string; limit = 600_000): Diffed =
   for g in groups(html, pathRe): result.paths.add g[0]
   for g in groups(html, statRe): result.stats.add (g[0], g[1])
 
-block diff_reads_hunks_by_their_counts:  # RenderTests.test_diff_reads_hunks_by_their_counts
+block diff_reads_hunks_by_their_counts:
   # a removed "-- x" and an added "++ x" look like the ---/+++ header lines
   var d = diffed("diff --git a/q.sql b/q.sql\n--- a/q.sql\n+++ b/q.sql\n" &
                  "@@ -1,3 +1,3 @@\n a\n--- x\n+++ y\n b\n")
@@ -113,7 +113,6 @@ block diff_reads_hunks_by_their_counts:  # RenderTests.test_diff_reads_hunks_by_
   assert "|1||||−||a&lt;|" in d.rows[1], d.rows[1]
 
 block diff_names_files_and_says_what_has_no_lines:
-  # RenderTests.test_diff_names_files_and_says_what_has_no_lines
   const cases = [
     ("diff --git a/x b/y.txt b/x b/y.txt\n--- a/x b/y.txt\n+++ b/x b/y.txt\n@@ -1 +1 @@\n-1\n+2\n",
      "x b/y.txt", ""),
@@ -136,7 +135,6 @@ block diff_names_files_and_says_what_has_no_lines:
     if note.len > 0: assert note in d.rows[0], path & ": " & d.rows[0]
 
 block a_large_diff_names_what_it_does_not_show:
-  # RenderTests.test_a_large_diff_names_what_it_does_not_show
   var big = ""
   for i in 0 ..< 5:
     big.add "diff --git a/f" & $i & " b/f" & $i & "\n--- a/f" & $i & "\n+++ b/f" & $i &

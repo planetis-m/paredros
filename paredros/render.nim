@@ -19,8 +19,8 @@
 ## Anything else is shown as written: text is never half-parsed.
 ##
 ## The patterns are std/rex's, which reads a pattern deterministically and
-## takes the longest match: where render.py's pattern leans on backtracking,
-## the one here is written so that one reading is the one Python takes.
+## takes the longest match: where a pattern would lean on backtracking, it is
+## written so that the one reading is the intended one.
 
 import std/[strutils, parseutils, unicode, rex, opt]
 import state
@@ -43,8 +43,7 @@ proc raw*(markup: string): Html =
   Html(markup)
 
 proc esc(s: string): string =
-  ## Text for HTML content or an attribute value: <, >, & and quotes escaped
-  ## (Python's html.escape).
+  ## Text for HTML content or an attribute value: <, >, & and quotes escaped.
   result = newStringOfCap(s.len)
   for c in s:
     case c
@@ -115,13 +114,13 @@ proc join*(parts: openArray[Html]; sep = ""): Html =
 # ------------------------------------------------------------------- helpers
 
 proc pyStrip(s: string; leading = true; trailing = true): string =
-  ## Python's str.strip(): Unicode white space, not only ASCII.
+  ## s without Unicode white space, not only ASCII, at either end.
   # GAP: \x1c..\x1f are not stripped, because std/unicode's white space list
-  # leaves out the separators Python's str.isspace() counts.
+  # leaves out these separators (README, Limitations).
   unicode.strip(s, leading, trailing)
 
 proc blank(s: string): bool =
-  ## Python's `not s.strip()`.
+  ## Is s empty or only white space?
   pyStrip(s).len == 0
 
 proc indent(line: string): int =
@@ -130,13 +129,13 @@ proc indent(line: string): int =
   while result < line.len and line[result] == ' ': inc result
 
 proc number(s: string): int =
-  ## Python's int() of a run of digits a pattern has checked.
+  ## The number in a run of digits a pattern has checked.
   var n: BiggestInt = 0
   discard parseBiggestInt(s, n)
   result = int(n)
 
 proc octal(s: string): int =
-  ## Python's int(s, 8) of the octal digits git writes.
+  ## The number in the octal digits git writes.
   result = 0
   for c in s: result = result * 8 + (ord(c) - ord('0'))
 
@@ -148,18 +147,18 @@ const
   SlotOpen = "\u{E000}"    # a set-aside piece's number goes between the two
   SlotClose = "\u{E001}"
 
-# GAP: `\s` is ASCII white space and control characters, Python's is Unicode
-# white space, so a URL or emphasis can run over a non-breaking space, because
-# std/rex has no Unicode classes.
+# GAP: `\s` is ASCII white space and control characters, not Unicode white
+# space, so a URL or emphasis can run over a non-breaking space, because
+# std/rex has no Unicode classes (README, Limitations).
 let
   link = re"\[((?:[^\[\]`]|`[^`]*`)+)\]\((https?://[^\s<>()]*(?:\([^\s<>()]*\)[^\s<>()]*)*)\)"
   bareUrl = re"https?://[^\s<>()]*(?:\([^\s<>()]*\)[^\s<>()]*)*"   # one level of parentheses
   angled = re"<(https?://[^\s<>]+)>"
   ticks = re"`+"
-  # GAP: the text of **strong** and *emphasis* holds no `*` (Python's `**a*b**`
-  # is strong, here it stays as written), and *emphasis* may touch another `*`
-  # (`**a*` gets one), because std/rex has no lazy repeats and no lookaround:
-  # Python's `\*\*(?=\S)(.+?)(?<=\S)\*\*` and `(?<![\w*])\*(?=[^\s*])(.+?)
+  # GAP: the text of **strong** and *emphasis* holds no `*` (`**a*b**` stays
+  # as written), and *emphasis* may touch another `*` (`**a*` gets one),
+  # because std/rex has no lazy repeats and no lookaround (README,
+  # Limitations): `\*\*(?=\S)(.+?)(?<=\S)\*\*` and `(?<![\w*])\*(?=[^\s*])(.+?)
   # (?<=[^\s*])\*(?![\w*])` are written without them, `\B` standing for "no
   # word character before or after", and `\w` there takes every non-ASCII
   # character for a word character.
@@ -168,8 +167,8 @@ let
 
 proc alnumBefore(text: string; i: int): bool =
   ## Is the character before byte `i` a letter or a digit?
-  # GAP: a non-ASCII digit (Python's str.isalnum()) is not one, because
-  # std/unicode has no digit test.
+  # GAP: a non-ASCII digit is not one, because std/unicode has no digit test
+  # (README, Limitations).
   let (r, _) = lastRune(text, i - 1)
   result = text[i - 1] in {'a'..'z', 'A'..'Z', '0'..'9'} or (text[i - 1] >= '\x80' and isAlpha(r))
 
@@ -242,20 +241,20 @@ proc inline*(text: string): Html =
 # -------------------------------------------------------------------- blocks
 
 let
-  # Python's `^( {0,3})(`{3,}|~{3,})[ \t]*([^`\s]*)[^`]*$`, the parts read
+  # `^( {0,3})(`{3,}|~{3,})[ \t]*([^`\s]*)[^`]*$`, the parts read
   # by `fenceParts`: as a language, `[ \t]*([^`\s]*)[^`]*` is `[^`]*`, and
   # std/rex has no `{3,}`
   fenceLine = re"[ ]{0,3}(?:```+|~~~)[^`]*"
-  # Python's `^ {0,3}(#{1,6})(?:[ \t]+(.*?))??(?:[ \t]+#+)?[ \t]*$`: the
+  # `^ {0,3}(#{1,6})(?:[ \t]+(.*?))??(?:[ \t]+#+)?[ \t]*$`: the
   # closing #s are taken off by `headingText`
   headingLine = re"[ ]{0,3}(#{1,6})(?:[ \t](.*))?"
-  # Python's `^ {0,3}([-*_])(?:[ \t]*\1){2,}[ \t]*$`, without the back
+  # `^ {0,3}([-*_])(?:[ \t]*\1){2,}[ \t]*$`, without the back
   # reference: three of the same character or more, white space between
   ruleLine = re"[ ]{0,3}(?:(?:-[ \t]*){2}(?:-[ \t]*)+|(?:\*[ \t]*){2}(?:\*[ \t]*)+|(?:_[ \t]*){2}(?:_[ \t]*)+)"
-  # Python's `^( *)([-*+]|(\d{1,9})[.)])(?:( +)(.*)|)$`; the number is read
+  # `^( *)([-*+]|(\d{1,9})[.)])(?:( +)(.*)|)$`; the number is read
   # from the marker, as std/rex numbers a group inside another after it.
-  # GAP: `\d` is ASCII digits, Python's any Unicode digit, because std/rex
-  # has no Unicode classes.
+  # GAP: `\d` is ASCII digits, not any Unicode digit, because std/rex has no
+  # Unicode classes (README, Limitations).
   itemLine = re"([ ]*)([-*+]|\d{1,9}[.)])(?:([ ]+)([^ ].*)?)?"
   quoteLine = re"[ ]{0,3}>[ ]?"   # the longest match takes the space
   # a yes or no, so the readings the check refuses do not matter
@@ -269,7 +268,7 @@ proc fenceParts(line: string; ind: var int; fence, lang: var string) =
   while k < line.len and line[k] == line[ind]: inc k
   fence = line.substr(ind, k - 1)
   while k < line.len and line[k] in {' ', '\t'}: inc k
-  # the `\s` GAP above: Python's language also ends at Unicode white space
+  # the `\s` GAP above: the language does not end at Unicode white space
   lang = line.substr(k, k + skipUntil(line, Whitespace + {'`'}, k) - 1)
 
 proc headingText(rest: string): string =
@@ -475,9 +474,9 @@ proc gitPath(p: string): string =
   ## characters (octal bytes for non-ASCII), and without its a/ or b/ side.
   var p = p
   if p.len > 1 and p[0] == '"' and p[^1] == '"':
-    # GAP: bytes that are not UTF-8 stay as they are, where Python's
-    # decode("utf-8", "replace") writes U+FFFD, because std/unicode has no
-    # decoding with replacement.
+    # GAP: bytes that are not UTF-8 stay as they are, not replaced by U+FFFD,
+    # because std/unicode has no decoding with replacement (README,
+    # Limitations).
     var output = ""
     let s = p.substr(1, p.len - 2)
     var i = 0
@@ -509,7 +508,7 @@ proc headerPath(rest: string): string =
   ## (a mode change, a binary file): both sides are the same path.
   let rest = pyStrip(rest)
   if rest.startsWith("\""):
-    # an unclosed quote, which git does not write, is taken whole (Python fails)
+    # an unclosed quote, which git does not write, is taken whole
     let n = matchLen(rest, quotedPath)
     return gitPath(if n >= 0: rest.substr(0, n - 1) else: rest)
   let half = (rest.len - 1) div 2
@@ -554,7 +553,7 @@ proc diff*(text: string; limit = 600_000): (Html, int) =
   var leftOld, leftNew, used = 0
   for whole in text.split('\n'):
     let line = if whole.endsWith('\r'): whole.substr(0, whole.len - 2) else: whole
-    used += runeLen(line) + 1   # characters, as Python counts them
+    used += runeLen(line) + 1   # characters, not bytes
     if leftOld > 0 or leftNew > 0:   # inside a hunk
       let c = line.substr(0, 0)
       if c == "\\":

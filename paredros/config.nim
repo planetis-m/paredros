@@ -29,8 +29,9 @@ proc load*(cwd: string; path = ""): Result[Config, string] =
     return if path.len > 0: err[Config, string]("no config file " & p)
            else: ok[Config, string](defaults())
   let text = try: readFile(p) except: ""
-  # GAP: the reason a file is not JSON is std/json's text, not Python's
-  # ("p(1, 11) Error: ..."), because that is the message std/json gives.
+  # GAP: the reason a file is not JSON is std/json's text ("p(1, 11) Error:
+  # ..."), because that is the only message std/json gives (README,
+  # Limitations).
   var raw = parseJson(text, p)
   if raw.hasError: return err[Config, string]("cannot read " & p & ": " & raw.errorMsg)
   let top = raw.root

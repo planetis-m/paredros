@@ -353,7 +353,7 @@ Hidden when there are no drafts. Anatomy:
 | Stale (known from `/drafts`) | the mark "Out of date" after the answer (like "Suggested"), and no Copy button: the answer can't be sent as it stands, and the row already opens the decision to save again. The reason is in the mark's tooltip and screen-reader text. |
 | Copy failed | the exact text appears in a read-only, preselected field under the row, with "Copy failed. Press Ctrl+C." |
 
-Copy runs `/send`, which makes the same re-check as `paredros directions send`: it refuses a draft that already reached the session or whose facts changed.
+Copy runs `/send`, which re-checks the draft first: it refuses a draft that already reached the session or whose facts changed.
 
 ### 5.5 Item header
 

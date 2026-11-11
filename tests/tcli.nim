@@ -1,6 +1,6 @@
-## The command line (test_paredros.py): ConfigTests.test_the_script_passes_its_config_on,
-## run with the fake `claude`; an error result ends paredros with its message and
-## exit status 1; no command prints the help.
+## The command line: the CLI passes its config on, run with the fake
+## `claude`; an error result ends paredros with its message and exit status
+## 1; no command prints the help.
 
 import std/[syncio, strutils, os, paths, envvars, assertions, opt, result]
 import fixtures
@@ -16,7 +16,7 @@ proc paredros(args: openArray[string]): Completed =
   if ran.isErr: quit ran.error("")
   result = ran.get(Completed())
 
-block the_script_passes_its_config_on:  # ConfigTests.test_the_script_passes_its_config_on
+block the_script_passes_its_config_on:
   # run as a program, paredros must hand --config to the modules that use it
   try: putEnv("XDG_STATE_HOME", tmp() & "/script-state") except: quit "cannot set the environment"
   let log = fake([("T", @["C1", "C2", "T1", "T2"])])
@@ -53,8 +53,7 @@ block no_command_prints_the_help:
   let r = paredros(["--session=" & Sid.substr(0, 7)])
   assert "Usage: paredros [options] brief [N...] | serve" in r.output, r.output
   assert "--port=PORT" in r.output and "--jobs=JOBS" in r.output, "every option"
-  # exit status 1 after "[Error] missing arguments", where Python exits 0
-  # (the GAP in paredros.nim)
+  # exit status 1 after "[Error] missing arguments" (the GAP in paredros.nim)
   assert r.code == 1
 
 tearDown()

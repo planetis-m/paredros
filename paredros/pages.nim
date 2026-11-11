@@ -70,17 +70,17 @@ proc plural(n: int; word: string): string =
 
 # ------------------------------------------------------------------ sources
 
-# GAP: a clock time right after `:`, `.`, `/` or `-` (Python leaves `x-10:01`)
-# or right before `:` (`1:23:4` loses `1:23`) is taken out, `\s` is ASCII
-# white space and `\d` ASCII digits, because std/rex has no lookaround and no
-# Unicode classes: pages.py's `(?<![\w:./-])` and `(?![\w:])` are `\b` here.
+# GAP: a clock time right after `:`, `.`, `/` or `-` (`x-10:01`) or right
+# before `:` (`1:23:4` loses `1:23`) is taken out, `\s` is ASCII white space
+# and `\d` ASCII digits, because std/rex has no lookaround and no Unicode
+# classes (README, Limitations): `(?<![\w:./-])` and `(?![\w:])` are `\b`.
 let
   clock = re"(?:\b(?:at|on)\s+)?(?:\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2},?\s+)?\b\d{1,2}:\d{2}(?::\d{2})?\b"
   emptyBrackets = re"\(\s*\)|\[\s*\]"
   spaceBefore = re"\s+([,;)])"
   # GAP: of separators in a row (`(,)`), only the first is taken out, so
-  # `(10:01, 10:05)` leaves `,)` where Python leaves `)`, because std/rex has
-  # no lookahead: pages.py's `([(,;])\s*(?=[,;)])` keeps the next separator
+  # `(10:01, 10:05)` leaves `,)`, not `)`, because std/rex has no lookahead
+  # (README, Limitations): `([(,;])\s*(?=[,;)])` keeps the next separator
   # here by matching it, so it is not looked at again.
   beforeSeparator = re"[(,;]\s*([,;)])"
   spaces = re"\s\s+"
@@ -353,9 +353,8 @@ proc builtTips*(dest: string): Opt[Table[int, string]] =
   var tips = initTable[int, string]()
   var good = true   # every key is a number
   for k, v in pairs(tree.root):
-    # GAP: a key is a number in ASCII digits only (Python's int() also takes
-    # other Unicode digits, `_` and white space around), because std/unicode
-    # has no digit test.
+    # GAP: a key is a number in ASCII digits only, not other Unicode digits,
+    # because std/unicode has no digit test (README, Limitations).
     try:
       tips[parseInt(k)] = v.getStr
     except:
@@ -384,8 +383,8 @@ proc build*(spath, dest: string; cfg = none[Config]()): Result[string, string] =
   var doing = "make " & dest   # what is being done, for the error
   try:
     createDir(path(dest))
-    # GAP: a page number is ASCII digits only (Python's \d and int() take any
-    # Unicode digit), because std/unicode has no digit test.
+    # GAP: a page number is ASCII digits only, not other Unicode digits,
+    # because std/unicode has no digit test (README, Limitations).
     var gone: seq[string] = @[]
     for (kind, f) in walkDir(path(dest)):
       let name = extractFilename($f)
@@ -411,7 +410,7 @@ proc build*(spath, dest: string; cfg = none[Config]()): Result[string, string] =
         writeAtomic(dest & "/" & extractFilename($f), readFile($f))
     # {item: tip} is a Table, which std/json's toJson cannot write
     # (bug-reports/112-json-tojson-table-field-fails-in-json-nim): the object
-    # is joined from its members, spaced as Python's json.dumps writes it
+    # is joined from its members, a space after each `:` and `,`
     var tips: seq[string] = @[]
     for r in d.items: tips.add quote($r.n) & ": " & quote(r.code.tip)
     doing = "write " & dest & "/tips.json"

@@ -1,6 +1,5 @@
-## The companion's setup (test_paredros.py): ReviewTests.test_companion_setup_builds_its_arguments
-## and SecurityTests.test_companion_may_run_only_reads. The refusals come with
-## serve.
+## The companion's setup: its arguments, and that it may run only reads.
+## The refusals are tested in tserve.
 
 import std/[syncio, strutils, os, paths, envvars, assertions, json, opt, result]
 import fixtures
@@ -33,7 +32,6 @@ proc real(p: string): string =
   try: expandFilename(p) except: p
 
 block companion_setup_builds_its_arguments:
-  # ReviewTests.test_companion_setup_builds_its_arguments
   resetState()
   let spath = spathOf(Sid)
   let (cwd, args) = argsOf(setup(Sid, spath))
@@ -64,7 +62,7 @@ block companion_setup_builds_its_arguments:
   writeJsonl(lost, [user("hi", "2026-11-09T10:00:00Z", tmp() & "/gone")])
   assert setup(Solo, lost).error("") == "cannot find the session's working directory"
 
-block companion_may_run_only_reads:  # SecurityTests.test_companion_may_run_only_reads
+block companion_may_run_only_reads:
   resetState()
   let args = argsOf(setup(Sid, spathOf(Sid)))[1]
   var allow, deny: seq[string] = @[]

@@ -234,7 +234,7 @@ proc agents*(sessionPath: string): seq[Agent] =
     let recs = readJsonl(p)
     var prompt = ""
     if recs.len > 0 and recs[0].kind == "user":
-      # every block's text, whatever its type, as the Python does
+      # every block's text, whatever its type
       prompt = recs[0].content
       if recs[0].blocks.len > 0:
         var parts: seq[string] = @[]
@@ -309,7 +309,7 @@ let
   gitC = re"""git\s+-C\s+[\"']?(/[^\s\"';&|)]+)"""
 
 proc groups(s: string; r: Regex): seq[string] =
-  ## The first group of every match of r in s, left to right (Python's findall).
+  ## The first group of every match of r in s, left to right.
   result = @[]
   var caps: seq[Capture] = @[]
   var start = 0

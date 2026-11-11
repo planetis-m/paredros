@@ -1,6 +1,5 @@
-## Child processes (test_paredros.py ProcessTests) and the transcript reading the
-## later layers build on, on the shared fixtures. The ledger test of
-## ProcessTests comes with brief.nim.
+## Child processes and the transcript reading the later layers build on, on
+## the shared fixtures.
 
 import std/[strutils, os, assertions, opt, result]
 import std/posix/posix
@@ -9,7 +8,7 @@ import ../paredros/[state, session]
 
 setUp()
 
-block a_timeout_leaves_no_child_behind:  # ProcessTests.test_a_timeout_leaves_no_child_behind
+block a_timeout_leaves_no_child_behind:
   let pidfile = tmp() & "/grandchild.pid"
   # the child starts a child of its own and waits
   let r = run(["sh", "-c", "sleep 30 & echo $! > " & pidfile & "; wait"], 1)
@@ -25,8 +24,8 @@ block a_timeout_leaves_no_child_behind:  # ProcessTests.test_a_timeout_leaves_no
   assert ran.isOk and ran.get(Completed()).output == "in", "input in, output out"
   assert ran.get(Completed()).errors == "err\n", "stderr apart"
 
-# The checks below are not in test_paredros.py: they hold the fixtures to what
-# test_paredros.py's work tests read from them through session.py.
+# The checks below hold the fixtures to what the work tests read from them
+# through session.nim.
 
 block the_coordinator_session:
   let spath = spathOf(Sid)

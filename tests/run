@@ -1,7 +1,7 @@
 #!/bin/sh
 # tests/run [NAME...]: build paredros, then build and run each tests/t*.nim (or the
 # named ones), in debug and in release. Run from anywhere. paredros.nim and
-# tests/fakeclaude.nim are built only once they exist (the port adds them later).
+# tests/fakeclaude.nim are built only when they exist.
 set -e
 cd "$(dirname "$0")/.."
 names=${*:-$(ls tests/t*.nim | sed 's|tests/||; s|\.nim$||')}

@@ -124,9 +124,7 @@ Rules:
 """
   ## The brief's prompt; filled in by `promptFor`.
 
-# The answers' JSON schemas, as the text `claude --json-schema` is given:
-# json.dumps of brief.py's SPLIT_SCHEMA and BRIEF_SCHEMA, so the model runs
-# get the same argument.
+# The answers' JSON schemas, as the text `claude --json-schema` is given.
 const
   SplitSchema* = """{"type": "object", "required": ["items", "housekeeping"], """ &
     """"properties": {"items": {"type": "array", "items": {"type": "object", "properties": """ &
@@ -268,8 +266,8 @@ proc askModel*(prompt, cwd, model, schema: string; timeout = 900): Result[JsonNo
   if ran.code != 0:
     return err[JsonNode, string]("claude exited " & $ran.code & ": " &
                                  runeSubStr(unicode.strip(ran.errors), 0, 300))
-  # GAP: why the output is not JSON is said in std/json's words, not
-  # Python's, because that is the message std/json gives.
+  # GAP: why the output is not JSON is said in std/json's words, because
+  # that is the only message std/json gives (README, Limitations).
   var answer = parseJson(ran.output)
   if answer.hasError: return err[JsonNode, string](answer.errorMsg)
   let got = answer{"structured_output"}
@@ -362,9 +360,9 @@ proc ledgerJson(led: Ledger): string =
   # is joined from its members
   var seen: seq[string] = @[]
   for k, v in pairs(led.seen): seen.add quote(k) & ":" & $v
-  # GAP: written on one line, where Python indents, and non-ASCII text as it
-  # is, where Python escapes it, because std/json has no pretty printer and
-  # no ASCII mode.
+  # GAP: written on one line, not indented, and non-ASCII text as it is, not
+  # \u-escaped, because std/json has no pretty printer and no ASCII mode
+  # (README, Limitations).
   result = "{\"items\":" & quote(led.items) & ",\"seen\":{" & seen.join(",") & "}}"
 
 proc fingerprint(key: string; texts: seq[string]): int =
@@ -579,7 +577,7 @@ proc load*(sid: string; n: int): Opt[Cached] =
 type
   # A cached brief as its file holds it, for std/json's toJson: each list's
   # entries with that list's fields only. The field names are the file's
-  # keys, brief.py's, so they keep its spelling.
+  # keys, so they keep the files' snake_case spelling.
   DecisionRecord = object
     question, reason, spec, source: string
     options: seq[string]

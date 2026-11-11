@@ -118,8 +118,8 @@ proc askNow(s: Server; prompt: string; timeout: int): Result[(string, seq[string
     let n = runeLen(why)
     return err[(string, seq[string]), string](
       if n > 0: runeSubStr(why, max(n - 400, 0)) else: "claude exited " & $ran.code)
-  # GAP: why the output is not JSON is said in std/json's words, not
-  # Python's, because that is the message std/json gives.
+  # GAP: why the output is not JSON is said in std/json's words, because
+  # that is the only message std/json gives (README, Limitations).
   var answer = parseJson(ran.output)
   if answer.hasError: return err[(string, seq[string]), string](answer.errorMsg)
   let forked = answer{"session_id"}.getStr
@@ -154,8 +154,8 @@ proc rebuild(s: Server; force = false): Result[bool, string] =
   release(s.building)
 
 proc newToken(): Opt[string] =
-  ## A per-run token: 24 random bytes, URL-safe base64 (Python's
-  ## secrets.token_urlsafe(24)); none when there is no randomness.
+  ## A per-run token: 24 random bytes, URL-safe base64; none when there is no
+  ## randomness.
   var bytes = default(array[24, byte])
   result = if urandom(bytes): some(encode(bytes, safe = true)) else: none[string]()
 
@@ -193,9 +193,9 @@ type Reply = object
 
 proc bare(status: int): Reply =
   ## A response with no body.
-  # GAP: a refusal or a missing file (421, 403, 404, 501) has no body, where
-  # Python's http.server sends an HTML error page, because std/httpserver has
-  # no error pages.
+  # GAP: a refusal or a missing file (421, 403, 404, 501) has no body, not an
+  # HTML error page, because std/httpserver has no error pages (README,
+  # Limitations).
   Reply(status: status, body: "", kind: "", noStore: false)
 
 proc json(status: int; body: string): Reply =
@@ -224,10 +224,10 @@ proc refusal(s: Server; c: HttpConnection): Opt[Reply] =
 
 proc file(s: Server; path: string): Reply =
   ## A built file (a page, paredros.css, paredros.js, tips.json) with its content type.
-  # GAP: no Last-Modified and never a 304, as Python's SimpleHTTPRequestHandler
-  # sends, and a path that climbs above the pages (`/../x`) is a 400 before
-  # it gets here, not a 404, because std/httpserver has no file handler and
-  # refuses such a target itself.
+  # GAP: no Last-Modified and never a 304, and a path that climbs above the
+  # pages (`/../x`) is a 400 before it gets here, not a 404, because
+  # std/httpserver has no file handler and refuses such a target itself
+  # (README, Limitations).
   let name = if path.endsWith("/"): path & "index.html" else: path
   result = bare(404)
   if fileExists(s.dest & name):
@@ -262,8 +262,8 @@ proc page(s: Server; c: HttpConnection): Result[Reply, string] =
     result = ok[Reply, string](file(s, c.path))
 
 proc number(n: JsonNode): Opt[int] =
-  ## An item number sent as a number or as its digits (Python's int()); none
-  ## for anything else.
+  ## An item number sent as a number or as its digits, white space around
+  ## allowed; none for anything else.
   result = case n.kind
            of JInt: some(int(n.getInt))
            of JString: (try: some(parseInt(strutils.strip(n.getStr))) except: none[int]())
@@ -280,11 +280,11 @@ proc draftJson(st: DraftState): string =
 proc act(s: Server; path, body: string): Reply =
   ## One of the five POST actions: JSON in, JSON out; a failure is a 500 that
   ## says what went wrong.
-  # GAP (every reply): non-ASCII text is written as it is, not \u-escaped as
-  # Python's json.dumps does, and control characters other than \b \f \n \r
-  # \t raw, because std/json has no ASCII mode and its `$` does not escape
-  # them (bug-reports/104-json-dollar-control-chars-unescaped).
-  # GAP: why a body is not JSON is said in std/json's words, not Python's.
+  # GAP (every reply): non-ASCII text is written as it is, not \u-escaped,
+  # and control characters other than \b \f \n \r \t raw, because std/json
+  # has no ASCII mode and its `$` does not escape them
+  # (bug-reports/104-json-dollar-control-chars-unescaped; README, Limitations).
+  # GAP: why a body is not JSON is said in std/json's words, its only message.
   var q = parseJson(if body.len > 0: body else: "{}")
   if q.hasError: return failed(q.errorMsg)
   case path
@@ -362,15 +362,15 @@ proc handle(c: sink HttpConnection; s: Server) {.passive.} =
       if refuse.isSome:
         reply(c, refuse.get(bare(500)), s.tags)
       elif c.meth == tag(mPost):
-        # any length, as Python reads Content-Length bytes: only the
-        # pages' own script, holding the token, gets this far
+        # any length, as Content-Length says: only the pages' own
+        # script, holding the token, gets this far
         reply(c, act(s, c.path, c.readBody(limit = high(int))), s.tags)
       else:
         let r = page(s, c)
         if r.isOk:
           reply(c, r.get(bare(500)), s.tags)
         else:
-          # as an exception in Python's handler: no answer, the reason on stderr
+          # no answer, the reason on stderr
           stderr.writeLine "paredros: " & r.error("")
           c.close()
     except ErrorCode:
@@ -386,10 +386,9 @@ proc acceptLoop(listener: sink HttpServer; s: Server) {.passive.} =
 proc openBrowser(url: string) =
   ## Opens url in the browser: $BROWSER, else xdg-open. No browser: nothing
   ## happens; the address is printed.
-  # GAP: $BROWSER is one command given the url, else xdg-open; Python's
-  # webbrowser also reads a list of commands in $BROWSER, fills in %s and
-  # knows the desktop's browsers, because Nimony's standard library has no
-  # browser module.
+  # GAP: $BROWSER is one command given the url, else xdg-open: no list of
+  # commands in $BROWSER, no %s, no known desktop browsers, because Nimony's
+  # standard library has no browser module (README, Limitations).
   try:
     let p = startProcess(getEnv("BROWSER", "xdg-open"), args = [url],
                          options = {poUsePath, poParentStreams})

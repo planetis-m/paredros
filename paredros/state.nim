@@ -31,9 +31,9 @@ proc appDir*(): string =
 # ---------------------------------------------------------------------- text
 
 proc collapse*(text: string): string =
-  ## The words of text joined by single spaces (Python's " ".join(text.split())).
+  ## The words of text (split at Unicode white space) joined by single spaces.
   # GAP: \x1c..\x1f do not separate words, because std/unicode's white space
-  # list leaves out the separators Python's str.split() counts.
+  # list leaves out these separators (README, Limitations).
   var words: seq[string] = @[]
   for w in unicode.splitWhitespace(text):
     if w.len > 0: words.add w
@@ -44,14 +44,13 @@ proc quote*[T](value: T): string =
   ## one line: std/json's `toJson`, then `$`.
   # GAP: control characters other than \b \f \n \r \t are written raw, which
   # is not JSON, because std/json's `$` does not escape them
-  # (bug-reports/104-json-dollar-control-chars-unescaped).
+  # (bug-reports/104-json-dollar-control-chars-unescaped; README, Limitations).
   var t = toJson(value)
   result = $t
 
 proc subGroup*(s: string; r: Regex; before = "", after = ""): string =
   ## s with every match of r replaced by its first group between before and
-  ## after (Python's re.sub(r, before + r"\1" + after, s)); std/rex's
-  ## `replace` takes no group.
+  ## after; std/rex's `replace` takes no group.
   result = ""
   var caps: seq[Capture] = @[]
   var i = 0

@@ -1,6 +1,5 @@
 ## A stand-in for `claude -p`, built as `claude` and put first on PATH by the
-## tests: test_paredros.py patches brief.ask_model with fake_model, which Nimony
-## cannot do, so this program stands in for the model run.
+## tests, so no test runs a real model.
 ##
 ## Each call is recorded in $FAKE_LOG/<n>/ (n counts from 0 in the order the
 ## calls start): `argv`, its arguments as a JSON array, and `prompt`, its

@@ -35,8 +35,8 @@ type
 
 proc number(stem: string): int =
   ## N of a file name's stem "d<N>"; -1 when it is no draft's.
-  # GAP: only ASCII digits make a draft number, where Python's \d and int()
-  # take any Unicode digit, because std/unicode has no digit test. A number
+  # GAP: only ASCII digits make a draft number, not other Unicode digits,
+  # because std/unicode has no digit test (README, Limitations). A number
   # too big for an int is no draft's either.
   result = -1
   if stem.len > 1 and stem[0] == 'd' and allCharsInSet(stem.substr(1), Digits):
@@ -71,7 +71,7 @@ proc readDraft(p: string): Result[Draft, string] =
         if k == "did": dr.did = v.getStr
         elif k == "question": dr.question = v.getStr
         else: dr.option = v.getStr
-      # null, as the Python writes for none, reads as ""
+      # null, written for none, reads as ""
       of "code": dr.code = v.getStr
       of "brief": dr.brief = v.getStr
       else: discard
@@ -104,8 +104,7 @@ proc allDrafts*(sid: string): Result[seq[Draft], string] =
 proc deliveredAt(dr: Draft; recs: seq[Rec]): Opt[string] =
   ## When the human pasted the draft into the session: the time of the first
   ## message they typed that holds "(d<N>,"; none if they did not.
-  # A message with no time counts as not delivered, as in the Python, where
-  # its "" is false.
+  # A message with no time counts as not delivered.
   let tag = "(" & dr.id & ","
   for r in recs:
     if isHuman(r) and tag in textOf(r) and r.timestamp.len > 0: return some(r.timestamp)
@@ -117,9 +116,9 @@ proc decide*(sid, spath: string; item: int; did, question, option: string; code 
   ## words, and returns it. Saving on the page is the approval; code and brief
   ## are what the page showed ("" for none). The error says the decision id
   ## is bad, or why the draft cannot be read or written.
-  # The item is an int by its type; the Python checks it at run time.
-  # GAP: a did with non-ASCII letters or digits is refused, where Python's \w
-  # takes them, because std/unicode has no digit test.
+  # GAP: a did with non-ASCII letters or digits is refused, because
+  # std/unicode has no digit test and std/rex's \w is ASCII (README,
+  # Limitations).
   if did.len == 0 or not allCharsInSet(did, IdentChars):
     return err[Draft, string]("bad decision id")
   let recs = readJsonl(spath)
@@ -144,9 +143,9 @@ proc decide*(sid, spath: string; item: int; did, question, option: string; code 
   let name = if mine.len > 0: mine else: "d" & $(used + 1)
   let p = d & "/" & name & ".json"
   # Joined from its members, not std/json's toJson, which has no null: code
-  # and brief are null when the page showed none, as the Python writes them.
-  # GAP: written on one line, not indented as the Python does (both are JSON),
-  # because std/json has no pretty printer.
+  # and brief are null when the page showed none.
+  # GAP: written on one line, not indented, because std/json has no pretty
+  # printer (README, Limitations).
   let record = "{\"item\":" & $item & ",\"did\":" & quote(did) & ",\"question\":" &
     quote(collapse(question)) & ",\"option\":" & quote(collapse(option)) & ",\"code\":" &
     orNull(code) & ",\"brief\":" & orNull(brief) & "}"

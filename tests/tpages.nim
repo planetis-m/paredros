@@ -1,8 +1,6 @@
-## The pages (test_paredros.py): ReviewTests.test_the_page_script_parses,
-## test_build_shows_brief_code_and_sources, test_lanes and
-## test_briefs_and_pages_hold_every_entry, and the page parts of
-## WorkItemTests.test_single_agent_session and
-## test_page_identity_survives_new_material_and_rewritten_briefs.
+## The pages: the page script, what an item page shows, the lanes, every
+## brief entry on the page, a single-agent session's page, and page identity
+## across new material and rewritten briefs.
 
 import std/[syncio, strutils, os, envvars, assertions, json, opt, result, tables]
 import fixtures
@@ -28,14 +26,14 @@ proc between(s, a, b: string): string =
   let rest = s.substr(s.find(a) + a.len)
   result = rest.substr(0, rest.find(b) - 1)
 
-block the_page_script_parses:  # ReviewTests.test_the_page_script_parses
+block the_page_script_parses:
   if findExe("node").len > 0:
     let r = run(["node", "--check", appDir() & "/static/paredros.js"], 60)
     assert r.isOk and r.get(Completed()).code == 0, r.get(Completed()).errors
   else:
     echo "skipped the_page_script_parses: node is not installed"
 
-block build_shows_brief_code_and_sources:  # ReviewTests.test_build_shows_brief_code_and_sources
+block build_shows_brief_code_and_sources:
   resetState()
   let dest = tmp() & "/out"
   assert "No work items yet" in readText(buildInto(Sid, dest) & "/index.html")
@@ -98,13 +96,13 @@ block build_shows_brief_code_and_sources:  # ReviewTests.test_build_shows_brief_
     Sid.substr(0, 7) & "/cache" in page
   assert "would mean for people writing Nimony code" in page
 
-block lanes:  # ReviewTests.test_lanes
+block lanes:
   assert lane(parsed("""{"open_decisions": [{}], "needs_review": [{}]}""")) == "decide"
   assert lane(parsed("""{"needs_review": [{}]}""")) == "review"
   assert lane(parsed("""{"spec_conflicts": [{}]}""")) == "review"
   assert lane(parsed("""{"bug_risks": [{}]}""")) == "clear"
 
-block briefs_and_pages_hold_every_entry:  # ReviewTests.test_briefs_and_pages_hold_every_entry
+block briefs_and_pages_hold_every_entry:
   var risks, qs: seq[string] = @[]
   for i in 0 ..< 5: risks.add "{\"text\": \"risk " & $i & "\", \"source\": \"the diff\"}"
   for i in 0 ..< 4:
@@ -130,7 +128,7 @@ block briefs_and_pages_hold_every_entry:  # ReviewTests.test_briefs_and_pages_ho
   assert "Suggested</span><span" notin page, "none recommended: no option marked,"
   assert "<p class=\"rec\"><span class=\"l\">Suggested</span>Wait.</p>" in page, "the reason alone"
 
-block single_agent_session:  # WorkItemTests.test_single_agent_session, its page
+block single_agent_session:   # its page
   resetState()
   discard fake([("Parser accepts empty input", @["C1", "T1"]),
                 ("Quotes are escaped", @["C2", "T1", "T2"])])
@@ -141,8 +139,7 @@ block single_agent_session:  # WorkItemTests.test_single_agent_session, its page
   assert fileExists(buildInto(Solo, tmp() & "/solo-out") & "/i" & $n & ".html")
 
 block page_identity_survives_new_material_and_rewritten_briefs:
-  # WorkItemTests.test_page_identity_survives_new_material_and_rewritten_briefs,
-  # its page: item 1 keeps its number and its decision's id
+  # item 1 keeps its number and its decision's id
   resetState()
   let spath = spathOf(Solo)
   let answer = """{"summary": "s", "open_decisions": [{"question": "Escape both?", """ &

@@ -1,7 +1,6 @@
-## Saved decisions (test_paredros.py): ReviewTests.test_a_draft_is_a_record_and_its_text_is_derived,
-## ReviewTests.test_decisions_draft_stale_and_delivered, and the decision parts
-## of WorkItemTests.test_page_identity_survives_new_material_and_rewritten_briefs
-## (its ledger parts are in twork; the page comes with pages).
+## Saved decisions: a draft's record and its text, stale and delivered
+## drafts, and a decision that holds across a new brief (the ledger side is
+## in twork, the page in tpages).
 
 import std/[syncio, strutils, os, assertions, json, opt, result, tables]
 import fixtures
@@ -29,7 +28,6 @@ proc writeCache(sid: string; n: int; inputs: string) =
     quit "cannot write the brief"
 
 block a_draft_is_a_record_and_its_text_is_derived:
-  # ReviewTests.test_a_draft_is_a_record_and_its_text_is_derived
   resetState()
   let d = state("directions", Sid)
   writeText(d & "/d1.md", "status: draft\nfacts:\n- ref master 0\n---\nDrop f7. (d1, approved by me)\n")
@@ -64,7 +62,6 @@ block a_draft_is_a_record_and_its_text_is_derived:
   assert withdraw(Sid, "d9").get(true) == false, "no such draft: nothing withdrawn"
 
 block decisions_draft_stale_and_delivered:
-  # ReviewTests.test_decisions_draft_stale_and_delivered
   resetState()
   let spath = spathOf(Sid)
   let before = readText(spath)
@@ -104,7 +101,6 @@ block decisions_draft_stale_and_delivered:
   writeText(spath, before)
 
 block a_decision_holds_across_a_new_brief:
-  # WorkItemTests.test_page_identity_survives_new_material_and_rewritten_briefs:
   # the decision saved on item 1 holds when a later run files new material
   # under a new item and rewrites every brief
   resetState()

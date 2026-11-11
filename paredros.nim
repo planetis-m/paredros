@@ -50,10 +50,10 @@ proc number(option, value: string; default: int): int =
 proc main() =
   ## Reads the command line, picks the session and its config, runs the command.
   # GAP: with no command the help follows "[Error] missing arguments" and
-  # paredros exits 1, where Python prints the help alone and exits 0; a bad
-  # command line is told on stdout with the help and exit 1, not on stderr
-  # with the usage and exit 2; and an option takes its value as --port=N or
-  # --port:N, not --port N; because that is how std/smartcli parses.
+  # paredros exits 1, not 0; a bad command line is told on stdout with the
+  # help and exit 1, not on stderr with the usage and exit 2; and an option
+  # takes its value as --port=N or --port:N, not --port N; because that is
+  # how std/smartcli parses (README, Limitations).
   let cli = cliapp("""paredros: understand and decide on what a Claude Code session did.
 
 Usage: paredros [options] brief [N...] | serve

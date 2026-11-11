@@ -1,9 +1,9 @@
-## Shared test fixtures, as test_paredros.py's setUpModule makes them: a
-## coordinator session (a fixer commits in its own worktree, a reviewer reads
-## it) and a single-agent session (two fixes, the first amended, and the
-## human's own commit in the same checkout). Everything lives in one temp
-## directory; setUp points paredros's state and Claude Code's config there before
-## anything runs, so no test touches the real ~/.local/state or ~/.claude.
+## Shared test fixtures: a coordinator session (a fixer commits in its own
+## worktree, a reviewer reads it) and a single-agent session (two fixes, the
+## first amended, and the human's own commit in the same checkout). Everything
+## lives in one temp directory; setUp points paredros's state and Claude
+## Code's config there before anything runs, so no test touches the real
+## ~/.local/state or ~/.claude.
 
 import std/[syncio, strutils, os, paths, dirs, tempfiles, envvars, json, opt, result]
 import ../paredros/[state, session, config, brief, work]
@@ -15,7 +15,7 @@ const
 # ------------------------------------------------------------------- helpers
 
 proc tmp*(): string =
-  ## The fixtures' temp directory (test_paredros.py's TMP).
+  ## The fixtures' temp directory.
   # The environment holds it: setUp put Claude Code's config dir right in it.
   parentDir(getEnv("CLAUDE_CONFIG_DIR"))
 
@@ -54,7 +54,7 @@ proc obj*(fields: openArray[(string, string)]): string =
   result.add "}"
 
 proc user*(text, ts: string; cwd = ""): string =
-  ## A message the human typed (test_paredros.py's user()), with cwd if given.
+  ## A message the human typed, with cwd if given.
   var f = @[("type", quote"user"), ("timestamp", quote(ts)), ("origin", obj([("kind", quote"human")])),
             ("uuid", quote("u-" & ts)), ("message", obj([("content", quote(text))]))]
   if cwd.len > 0: f.add ("cwd", quote(cwd))
@@ -69,7 +69,7 @@ proc bash*(id, command: string): string =
   tool("Bash", id, [("command", quote(command))])
 
 proc assistant*(ts: string; text = ""; tool = ""; cwd = ""): string =
-  ## A record of the session speaking (test_paredros.py's assistant()): a text
+  ## A record of the session speaking: a text
   ## block, a tool_use block (see tool and bash), or both; with cwd if given.
   var content: seq[string] = @[]
   if text.len > 0: content.add obj([("type", quote"text"), ("text", quote(text))])
@@ -114,8 +114,7 @@ proc resetState*() =
 # ------------------------------------------------------------- the model
 
 proc fake*(split: openArray[(string, seq[string])] = []; brief = ""; raw = ""): string =
-  ## Puts the fake `claude` (tests/fakeclaude.nim) first on PATH, answering
-  ## as test_paredros.py's fake_model(split_plan, brief_answer) does: split names
+  ## Puts the fake `claude` (tests/fakeclaude.nim) first on PATH: split names
   ## each new item's title (an existing item's number) and its handles, "C*"
   ## for every commit, and "housekeeping" the handles left out; brief is the
   ## briefs' answer, JSON text; raw, when given, is the whole answer to every
@@ -162,7 +161,7 @@ proc argvOf*(log: string; n: int): seq[string] =
 
 proc runBrief*(sid: string; force = false): seq[(int, string)] =
   ## What `paredros brief` does for the fixture session: sort its new material,
-  ## then write the briefs (test_paredros.py's cli("brief")). An error ends the
+  ## then write the briefs. An error ends the
   ## test run.
   let spath = spathOf(sid)
   let src = sources(spath)

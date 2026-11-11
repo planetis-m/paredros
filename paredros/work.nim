@@ -27,9 +27,9 @@ proc epoch*(ts: string): float =
   ## ISO time from a transcript (UTC, 'Z') or git (with offset) as epoch
   ## seconds; 0 when it is not one.
   # GAP: only YYYY-MM-DDTHH:MM:SS, with a fraction, then Z, ±HH:MM or no zone,
-  # is read (Python's fromisoformat reads more forms), and a time with no zone
-  # is taken as UTC where Python takes the local zone, because std/times has
-  # no parse (bug-reports/119-times-cannot-parse-a-date).
+  # is read, and a time with no zone is taken as UTC, not local time, because
+  # std/times has no parse (bug-reports/119-times-cannot-parse-a-date; README,
+  # Limitations).
   result = 0.0
   let (y, mo, d) = (digits(ts, 0, 4), digits(ts, 5, 2), digits(ts, 8, 2))
   let (h, mi, s) = (digits(ts, 11, 2), digits(ts, 14, 2), digits(ts, 17, 2))

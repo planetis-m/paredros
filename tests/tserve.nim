@@ -1,7 +1,6 @@
-## The server (test_paredros.py): ServerTests and
-## SecurityTests.test_refusals_are_reported_once_each. `paredros serve --port=0`
-## runs on the coordinator fixture, on a port the system picks; curl is the
-## browser, and the fake `claude` is the companion.
+## The server, and the companion's refusals reported once each.
+## `paredros serve --port=0` runs on the coordinator fixture, on a port the
+## system picks; curl is the browser, and the fake `claude` is the companion.
 
 import std/[syncio, strutils, os, paths, osproc, streams, envvars, assertions, json, opt, result]
 import fixtures
@@ -78,13 +77,13 @@ proc idOf(body: string): string =
   var t = parseJson(body)
   result = t{"id"}.getStr
 
-block run_prints_the_bound_port:  # ServerTests.test_run_prints_the_bound_port
+block run_prints_the_bound_port:
   assert first.startsWith("serving http://127.0.0.1:") and first.endsWith("/  (Ctrl+C to stop)"),
     "the address: " & first
   assert port.len > 0 and port != "0", "the bound port, not 0"
   assert request("GET", "/").status == 200, "served there"
 
-block other_hosts_are_refused:  # ServerTests.test_other_hosts_are_refused
+block other_hosts_are_refused:
   assert request("GET", "/config.js").status == 200
   assert request("GET", "/config.js", host = "localhost:" & port).status == 200
   assert request("GET", "/config.js", host = "evil.example:" & port).status == 421
@@ -94,7 +93,7 @@ block other_hosts_are_refused:  # ServerTests.test_other_hosts_are_refused
   assert request("HEAD", "/index.html", host = "evil.example:" & port).status == 421
   assert request("HEAD", "/index.html").status == 200
 
-block another_site_cannot_read_the_token:  # ServerTests.test_another_site_cannot_read_the_token
+block another_site_cannot_read_the_token:
   proc get(site: openArray[string]): (int, bool) =
     ## /config.js with these headers: the status, and whether the token came.
     let r = request("GET", "/config.js", headers = site)
@@ -122,7 +121,7 @@ block the_built_pages:
   assert request("GET", "/tips.json").json, "the code tips, as JSON"
   assert request("GET", "/i99.html").status == 404, "no such page"
 
-block copy_makes_the_same_checks_as_send:  # ServerTests.test_copy_makes_the_same_checks_as_send
+block copy_makes_the_same_checks_as_send:
   let spath = spathOf(Sid)
   let before = readText(spath)
   let q = "Allow a call as a field default?"
@@ -160,7 +159,7 @@ block copy_makes_the_same_checks_as_send:  # ServerTests.test_copy_makes_the_sam
   assert idOf(r.body) != id, "Undo never frees a number"
   writeText(spath, before)
 
-block the_question_carries_the_pages_brief:  # ServerTests.test_the_question_carries_the_pages_brief
+block the_question_carries_the_pages_brief:
   try:
     writeJson(cachePath(Sid, 8), """{"inputs": "h", "brief": {""" &
       """"summary": "The parser now accepts `{}`.", """ &
@@ -195,7 +194,7 @@ block the_question_carries_the_pages_brief:  # ServerTests.test_the_question_car
   assert "They selected this text on the page:\n> the default\n" in prompts(log)[2]
   assert "Their question: What does this mean?" in prompts(log)[2]
 
-block refusals_are_reported_once_each:  # SecurityTests.test_refusals_are_reported_once_each
+block refusals_are_reported_once_each:
   var t = parseJson("""[{"tool_name": "Bash", "tool_input": {"command": "git diff --output=x"}},
     {"tool_name": "Bash", "tool_input": {"command": "git diff --output=x"}},
     {"tool_name": "Edit", "tool_input": {"file_path": "/r/a.nim"}}]""")

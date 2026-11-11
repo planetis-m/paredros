@@ -1,6 +1,5 @@
-## The briefs and the ledger: the ledger test of test_paredros.py ProcessTests,
-## the model-run test of SecurityTests, the prompt asserts of ConfigTests and
-## ReviewTests.test_brief_parse_keeps_known_sections.
+## The briefs and the ledger: an unreadable ledger, the model runs' tools and
+## schema, the prompt from the config, and parsing a brief.
 
 import std/[strutils, assertions, json, opt, result, tables]
 import fixtures
@@ -9,7 +8,6 @@ import ../paredros/[config, brief]
 setUp()
 
 block an_unreadable_ledger_stops_brief_and_is_kept:
-  # ProcessTests.test_an_unreadable_ledger_stops_brief_and_is_kept
   let sid = "77777777-0000-0000-0000-000000000000"
   let p = ledgerPath(sid)
   let none = loadLedger(sid)
@@ -22,7 +20,6 @@ block an_unreadable_ledger_stops_brief_and_is_kept:
     assert readText(p) == text, "left as it is"
 
 block model_runs_have_only_the_read_tools_and_answer_in_the_schema:
-  # SecurityTests.test_model_runs_have_only_the_read_tools_and_answer_in_the_schema
   var log = fake(raw = """{"result": "prose", "structured_output": {"summary": "s", """ &
                        """"bug_risks": [{"text": "t", "source": "x"}]}}""")
   let got = askModel("p", tmp(), "opus", BriefSchema)
@@ -40,7 +37,7 @@ block model_runs_have_only_the_read_tools_and_answer_in_the_schema:
   assert askModel("p", tmp(), "opus", BriefSchema).error("") == "the answer is not in the schema"
 
 block the_prompt_follows_the_config:
-  # ConfigTests.test_defaults_without_a_file and test_the_nimony_example: the prompt
+  # the defaults and the Nimony example: the prompt
   let p = promptFor(config.load(tmp() & "/nowhere").get(Config()), "x")
   assert "There is no spec." in p
   assert "for the project's users" in p
@@ -48,7 +45,7 @@ block the_prompt_follows_the_config:
   assert "for people writing Nimony code" in q
   assert "The spec, what the code must agree with, is doc/language.md." in q
 
-block brief_parse_keeps_known_sections:  # ReviewTests.test_brief_parse_keeps_known_sections
+block brief_parse_keeps_known_sections:
   var t = parseJson("""{"summary": "s", "bug_risks": [{"text": "t"}], "extra": 1}""")
   let b = parse(t.root)
   assert b.summary == "s" and b.lists[BugRisks].len == 1 and b.lists[BugRisks][0].text == "t"

@@ -1,16 +1,11 @@
 # paredros: understand and decide on what a Claude Code session did
 
-The Nimony port of [hitl](../hitl): the same program, written in Nimony on
-its standard library alone, under its own name. It behaves as the Python
-does and builds the same pages; its state (`~/.local/state/paredros`) has the
-same layout as hitl's (`~/.local/state/hitl`), so copying one into the other
-carries the ledger, briefs and drafts across. Where Nimony's standard library cannot match the Python
-yet, the difference is listed under Gaps in [PORTING.md](PORTING.md); the
-ones you may notice are under [Differences from the Python](#differences-from-the-python).
+Written in Nimony, on its standard library alone. What that library cannot
+do yet is listed under [Limitations](#limitations).
 
 A desk beside any Claude Code session: one agent working alone, or a
 coordinator that launches subagents, on any skill or kind of work (fixing
-bugs, porting a library, building a feature). The agents never load it and do
+bugs, building a feature, any other change). The agents never load it and do
 no extra work. You still talk to the session as before; paredros gives you:
 
 - **Review pages:** one page per work item, with a short brief and the code,
@@ -27,11 +22,11 @@ and the `claude` CLI. paredros uses Nimony's standard library only. Build once,
 then add an alias:
 
 ```sh
-git clone <this repository> ~/Projects/hitl-nimony
-cd ~/Projects/hitl-nimony
+git clone <this repository> ~/Projects/paredros
+cd ~/Projects/paredros
 ./build.sh --toolchain     # a private copy of the Nimony toolchain (see build.sh)
 ./build.sh                 # bin/paredros
-alias paredros=~/Projects/hitl-nimony/bin/paredros
+alias paredros=~/Projects/paredros/bin/paredros
 ```
 
 `bin/paredros` finds `companion.md` and `static/` in the repository it was built
@@ -55,7 +50,7 @@ paredros serve            # pages, decisions and a chat: select text, "Ask about
 | `--config=FILE` | config file (default: `.paredros.json` in the session's working directory) |
 | `--model=MODEL` | `brief`: the model (default opus); `serve`: the companion's model |
 | `--force` | `brief`: rewrite even if the inputs did not change |
-| `--jobs=N` | `brief`: how many briefs may be written at once (default 4; see Gaps) |
+| `--jobs=N` | `brief`: how many briefs may be written at once (default 4; see Limitations) |
 | `--port=N` | `serve`: the port (default 8765; 0: one the system picks) |
 
 `serve` builds the pages under `~/.local/state/paredros/review/<session>/`; they
@@ -82,7 +77,7 @@ It never changes them. Three kinds of material come out of them:
   rebase drop out).
 
 `paredros brief` first asks the model to sort new material into **work items**
-(one bug, one ported module, one feature). A single agent that fixed three
+(one bug, one module, one feature). A single agent that fixed three
 things in one session gets three items, each with its own commits; a
 coordinator's fixer, reviewers and later redo of one bug share one item.
 Housekeeping is left out by a rule in that prompt: status checks, filing or
@@ -138,10 +133,8 @@ button. Every key may be left out; an unknown key is refused.
 
 `{scratch}` is the companion's scratch folder and `{home}` your home
 directory. [examples/nimony.paredros.json](examples/nimony.paredros.json) is the full
-Nimony config. For a port, `spec` can name the source implementation ("the
-Python sources in ../orig, which the port must match"), and a compare action
-can run the original. A `.hitl.toml` from an older hitl must be converted to
-`.paredros.json` by hand.
+Nimony config. `spec` can also name another implementation the code must
+match, and a compare action can run it.
 
 ## Review pages
 
@@ -197,11 +190,11 @@ addressed to `127.0.0.1:<port>` or `localhost:<port>`; each run uses a random
 token, and it refuses actions without it or from another site's page.
 
 **Warning: the server listens on every network interface, not on 127.0.0.1
-only** (the Python version binds 127.0.0.1). std/httpserver's `listenHttp`
-cannot choose the address (bug-reports/113). So while `paredros serve` runs, it
-is reachable from the network: a client there can send its own Host header,
-read the token from `/config.js`, read the pages, and post decisions or
-questions, which run `claude` as you. Do not run `paredros serve` on a network
+only.** std/httpserver's `listenHttp` cannot choose the address
+(bug-reports/113). So while `paredros serve` runs, it is reachable from the
+network: a client there can send its own Host header, read the token from
+`/config.js`, read the pages, and post decisions or questions, which run
+`claude` as you. Do not run `paredros serve` on a network
 you do not trust until bug 113 is fixed.
 
 The chat's first question starts `claude -p --resume <session> --fork-session`
@@ -240,25 +233,94 @@ draft already reached the session or when those facts changed since (then
 save it again on its page). Otherwise it copies the text, which ends with
 `(d3, approved by me)`. You paste it into the session between turns.
 
-## Differences from the Python
+## Limitations
 
-All are listed, with their cause, under Gaps in [PORTING.md](PORTING.md).
-The ones you may notice:
+Each comes from a missing piece or a bug in Nimony's standard library. The
+code marks each spot with a `# GAP:` comment; when the library is fixed, the
+comment and its line here go.
 
-- `paredros serve` listens on every interface (see the warning above), a port in
-  use stops it with an assertion instead of a message, and a browser tab that
-  closes before its answer is written stops the whole server (SIGPIPE).
-- `--jobs` is accepted, but the briefs are written one after another.
-- The command line follows std/smartcli: `--port=N`, not `--port N`; with no
-  command, the help comes after `[Error] missing arguments` and paredros exits 1.
-- The JSON files paredros writes (the ledger, the brief cache, drafts) are on one
-  line instead of indented; both versions read them.
-- A refused request or a missing file gets an empty answer instead of an HTML
-  error page.
-- Markdown in briefs and answers: `**a*b**` stays as written, and a
-  non-ASCII space or digit is not taken for one (`std/rex` has no lazy
-  repeats, lookaround or Unicode classes); the "From" line may drop a few
-  more clock times or keep a stray separator.
+Server:
+
+- `paredros serve` listens on every interface, not on 127.0.0.1 only (see
+  the warning above), because std/httpserver's `listenHttp` takes no address
+  (bug-reports/113).
+- A port in use stops paredros with a failed assertion, not a message,
+  because std/ioring's `listenTcp` asserts that bind succeeds
+  (bug-reports/109).
+- A browser tab that goes away before its answer is written stops the whole
+  server (SIGPIPE), because std/httpserver neither ignores nor suppresses
+  the signal (bug-reports/114).
+- A refused request or a missing file (421, 403, 404, 501) gets an empty
+  answer, not an HTML error page; files have no Last-Modified and are never a
+  304; a target that climbs above the pages (`/../x`) is a 400, not a 404.
+  std/httpserver has no error pages and no file handler, and refuses such a
+  target itself.
+- `$BROWSER` is one command given the URL, else `xdg-open`: no list of
+  commands, no `%s`, no known desktop browsers, because the standard library
+  has no browser module.
+
+Model runs and child processes:
+
+- `--jobs` is accepted, but the briefs are written one after another: runs
+  started at once from std/parfor's `||` wait on each other for ever, because
+  std/osproc's children inherit each other's pipes on Linux
+  (bug-reports/105).
+- A child that keeps stdout or stderr open is not stopped at its timeout,
+  only once it closes them, and a child that fills its stderr pipe while
+  stdout is read waits for ever, because std/osproc has no `communicate`
+  (bug-reports/120).
+- A program that cannot be found or started runs and exits 127 instead of
+  failing to start, because std/osproc's fork and execve report a failed exec
+  that way.
+
+Files and JSON:
+
+- The JSON files paredros writes (the ledger, the brief cache, drafts, the
+  companion's settings) and the server's replies are on one line, not
+  indented, with non-ASCII text as it is, not `\u`-escaped. Both are valid
+  JSON. std/json has no pretty printer and no ASCII mode.
+- A control character other than `\b \f \n \r \t` in a title, key, brief or
+  reply is written raw, which is not JSON, because std/json's `$` does not
+  escape them (bug-reports/104).
+- Why a config file, a request body or the model's answer is not JSON is
+  told in std/json's own message, the only one it gives.
+- Times are read only as `YYYY-MM-DDTHH:MM:SS`, with a fraction, then `Z`,
+  `±HH:MM` or no zone, and a time with no zone is taken as UTC, not local
+  time, because std/times has no parse (bug-reports/119).
+
+Text:
+
+- Markdown in briefs and answers: the text of `**strong**` and `*emphasis*`
+  holds no `*` (`**a*b**` and `*a*b*` stay as written), emphasis may touch
+  another `*` (`**a*` gets one), and a non-ASCII character next to a `*`
+  counts as a word character, because std/rex has no lazy repeats and no
+  lookaround.
+- `\s` is ASCII white space and the control characters: a URL, a fence's
+  language or emphasis runs over U+00A0 and other Unicode spaces, and stops
+  at `\x01`; `\d` is ASCII digits, so a list item numbered with non-ASCII
+  digits is a paragraph. std/rex has no Unicode classes.
+- A bare URL right after a non-ASCII digit (`٣`, `²`) is linked; a draft
+  number, a page number, a `tips.json` key or a decision id is ASCII letters
+  and digits only (`d٣.json` is no draft, `i٣.html` is never deleted).
+  std/unicode has no digit test.
+- `\x1c`..`\x1f` are not white space: they are not stripped and do not
+  separate words, because std/unicode's white space list leaves them out.
+- A C-quoted path in a diff with bytes that are not UTF-8 keeps them, not
+  U+FFFD, because std/unicode has no decoding with replacement.
+- The "From" line drops a clock time right after `:`, `.`, `/` or `-`
+  (`x-10:01`) or right before `:` (`1:23:4` loses `1:23`), and of
+  separators in a row takes out only the first (`(10:01, 10:05)` leaves
+  `,)`), because std/rex has no lookaround.
+- A project name whose first letter's capital is two letters (`ß`) gets one,
+  because std/unicode maps one rune to one rune.
+
+Command line:
+
+- With no command, the help comes after `[Error] missing arguments` and
+  paredros exits 1; a bad command line is told on stdout with the help and
+  exit 1, not on stderr with the usage and exit 2; an option's value is given
+  as `--port=N` or `--port:N`, not `--port N`. That is how std/smartcli
+  parses.
 
 ## Tests
 
@@ -268,7 +330,7 @@ tests/run tpages tserve    # only these
 node --check static/paredros.js
 ```
 
-The tests are the Python's `test_hitl.py`, one file per module, on throwaway
-git repositories and transcripts in a temp directory, with a fake `claude`
-(`tests/fakeclaude.nim`) first on PATH. Never run two builds at once: Nimony
+The tests are one file per module, on throwaway git repositories and
+transcripts in a temp directory, with a fake `claude` (`tests/fakeclaude.nim`)
+first on PATH. Never run two builds at once: Nimony
 builds in parallel fail.

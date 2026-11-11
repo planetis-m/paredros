@@ -77,8 +77,8 @@ proc setup*(sid, spath: string;
   var denied: seq[string] = @[]   # allowed reads with an option that writes
   for e in ReadEscapes: denied.add "Bash(" & e & ")"
   # GAP: written on one line, not indented, and non-ASCII text as it is, not
-  # \u-escaped as the Python does (both are JSON), because std/json has no
-  # pretty printer and no ASCII mode.
+  # \u-escaped, because std/json has no pretty printer and no ASCII mode
+  # (README, Limitations).
   let settings = quote(Settings(permissions: Permissions(allow: allowed, deny: denied)))
   let sfile = briefs & "/companion-settings.json"   # one per session: two servers never share it
   try:
