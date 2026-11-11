@@ -6,7 +6,7 @@
 ## anything runs, so no test touches the real ~/.local/state or ~/.claude.
 
 import std/[syncio, strutils, os, paths, dirs, tempfiles, envvars, json, opt, result]
-import ../hitl/[state, session]
+import ../hitl/[state, session, config, brief, work]
 
 const
   Sid* = "11111111-2222-3333-4444-555555555555"   ## a coordinator with a fixer and a reviewer
@@ -115,6 +115,77 @@ proc example*(): string =
 proc resetState*() =
   ## Every test that writes briefs, drafts or pages starts without any.
   try: removeDir(path(outDir())) except: discard
+
+# ------------------------------------------------------------- the model
+
+proc fake*(split: openArray[(string, seq[string])] = []; brief = ""; raw = ""): string =
+  ## Puts the fake `claude` (tests/fakeclaude.nim) first on PATH, answering
+  ## as test_hitl.py's fake_model(split_plan, brief_answer) does: split names
+  ## each new item's title (an existing item's number) and its handles, "C*"
+  ## for every commit, and "housekeeping" the handles left out; brief is the
+  ## briefs' answer, JSON text; raw, when given, is the whole answer to every
+  ## call. Returns the fresh directory the calls are recorded in.
+  var n = 1
+  while dirExists(tmp() & "/calls-" & $n): inc n
+  result = tmp() & "/calls-" & $n
+  try: createDir(path(result)) except: quit "no " & result
+  var items: seq[string] = @[]
+  var housekeeping = "[]"
+  for (key, handles) in split:
+    var hs: seq[string] = @[]
+    for h in handles: hs.add str(h)
+    if key == "housekeeping":
+      housekeeping = "[" & hs.join(", ") & "]"
+    elif key.len > 0 and key.allCharsInSet(Digits):
+      items.add obj([("id", key), ("handles", "[" & hs.join(", ") & "]")])
+    else:
+      items.add obj([("title", str(key)), ("handles", "[" & hs.join(", ") & "]")])
+  writeText(tmp() & "/plan.json", obj([("split", "[" & items.join(", ") & "]"),
+    ("housekeeping", housekeeping), ("brief", str(brief)), ("raw", str(raw))]))
+  let bin = (try: $paths.getCurrentDir() except: ".") & "/nimcache/tests/bin"
+  try:
+    putEnv("FAKE_PLAN", tmp() & "/plan.json")
+    putEnv("FAKE_LOG", result)
+    if not getEnv("PATH").startsWith(bin & ":"): putEnv("PATH", bin & ":" & getEnv("PATH"))
+  except:
+    quit "cannot set the environment"
+
+proc prompts*(log: string): seq[string] =
+  ## What each call recorded in log got on stdin, in the order they started.
+  result = @[]
+  var n = 0
+  while fileExists(log & "/" & $n & "/prompt"):
+    result.add readText(log & "/" & $n & "/prompt")
+    inc n
+
+proc argvOf*(log: string; n: int): seq[string] =
+  ## The arguments call n recorded in log was given.
+  result = @[]
+  var t = parseJson(readText(log & "/" & $n & "/argv"))
+  if not t.hasError and t.root.kind == JArray:
+    for a in items(t.root): result.add a.getStr
+
+proc runBrief*(sid: string; force = false): seq[(int, string)] =
+  ## What `hitl brief` does for the fixture session: sort its new material,
+  ## then write the briefs (test_hitl.py's cli("brief")). An error ends the
+  ## test run.
+  let spath = spathOf(sid)
+  let src = sources(spath)
+  let cfg = config.load(src.cwd)
+  if cfg.isErr: quit cfg.error("")
+  let led = split(sid, src)
+  if led.isErr: quit led.error("")
+  let d = collect(spath, cfg.get(defaults()), src)
+  if d.isErr: quit d.error("")
+  result = generateAll(d.get(Work()), force = force)
+
+proc collectNow*(sid: string): Work =
+  ## work.collect of the fixture session, read now. An error ends the test run.
+  let spath = spathOf(sid)
+  let src = sources(spath)
+  let d = collect(spath, config.load(src.cwd).get(defaults()), src)
+  if d.isErr: quit d.error("")
+  result = d.get(Work())
 
 # ------------------------------------------------------------------- setUp
 

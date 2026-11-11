@@ -94,7 +94,7 @@ only from the ones above it, never below, and never inside a proc.
 |---|---|---|
 | 1 | state, session, config | done |
 | 1 | render | done |
-| 2 | brief, work | to do |
+| 2 | brief, work | done |
 | 3 | drafts, companion | to do |
 | 4 | pages | to do |
 | 4 | serve, CLI | to do |
@@ -109,10 +109,15 @@ bug, left for another day.
 |---|---|---|
 | `session.run` | a child that keeps stdout or stderr open is not stopped at the timeout, only once it closes them (ProcessTests' timeout test passes, after 30 s); a child that fills its stderr pipe while stdout is read waits for ever | std/osproc has no `communicate` (bug-reports/120-osproc-has-no-communicate): stdout, then stderr are read to their end, then `waitForExit` gets the time left |
 | `session.run` | a program that cannot be found or started runs and exits 127 instead of failing to start | std/osproc's fork + execve reports a failed exec as exit 127 |
-| `config.load` | why a file is not JSON is said in std/json's words, not Python's | that is the message std/json gives |
+| `config.load`, `brief.askModel` | why a file, or claude's output, is not JSON is said in std/json's words, not Python's | that is the message std/json gives |
 | `render.inline` | the text of **strong** and *emphasis* holds no `*` (`**a*b**`, `*a*b*` stay as written), *emphasis* may touch another `*` (`**a*` and `*a**` get one), and a non-ASCII character next to a `*` counts as a word character | std/rex has no lazy repeats and no lookaround: render.py's STRONG and EM are written without them, `\B` for "no word character before or after" |
 | `render` | `\s` is ASCII white space and the control characters: a URL, a fence's language or emphasis runs over U+00A0 and other Unicode spaces, and stops at `\x01` | std/rex has no Unicode classes |
 | `render` | text is stripped of Unicode white space except `\x1c`..`\x1f` | std/unicode's white space list leaves out the separators Python's `str.isspace()` counts |
 | `render.inline` | a bare URL right after a non-ASCII digit (`٣`, `²`) is linked | std/unicode has no digit test (Python's `str.isalnum()`) |
 | `render.markdown` | a list item numbered with non-ASCII digits (`٣. x`) is a paragraph | std/rex's `\d` is ASCII |
 | `render.diff` | a C-quoted path with bytes that are not UTF-8 keeps them, where Python writes U+FFFD | std/unicode has no decoding with replacement |
+| `brief` (`short`, `decisionId`, a new item's title) | `\x1c`..`\x1f` do not separate words when white space is collapsed | std/unicode's white space list leaves out the separators Python's `str.split()` counts |
+| `brief`: the ledger and the brief cache | a control character other than `\b \f \n \r \t` in a title, key or brief is written raw, which is not JSON | std/json's `$` does not escape them (bug-reports/104-json-dollar-control-chars-unescaped) |
+| `brief`: the ledger and the brief cache | written on one line, not indented, and non-ASCII text as it is, not `\u`-escaped (both still JSON) | std/json has no pretty printer |
+| `brief.generateAll` | the briefs' model runs go one after another, whatever `--jobs` says | runs started at once from std/parfor's `||` wait on each other for ever: std/osproc's children inherit each other's pipes on Linux (bug-reports/105-osproc-pipes-inherited-by-later-children) |
+| `work.epoch` | only `YYYY-MM-DDTHH:MM:SS`, with a fraction, then `Z`, `±HH:MM` or no zone, is read (else 0, as for bad input), and a time with no zone is taken as UTC, not local time | std/times has no parse (bug-reports/119-times-cannot-parse-a-date) |
