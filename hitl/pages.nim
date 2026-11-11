@@ -14,7 +14,7 @@ let
     ## The chat icon, on the chat buttons and the compare button.
   back* = svg("<path d=\"M12.5 4.5L7 10l5.5 5.5\"/>", 16, "2")
     ## The way back to the index.
-  fwd* = svg("<path d=\"M7.5 4.5L13 10l-5.5 5.5\"/>", 16, "2")
+  fwd = svg("<path d=\"M7.5 4.5L13 10l-5.5 5.5\"/>", 16, "2")
     ## The way on, at the end of a page.
 
 const Cross = "<path d=\"M5.5 5.5l9 9M14.5 5.5l-9 9\"/>"   # the close and unquote icons
@@ -25,7 +25,7 @@ proc button(attrs: openArray[Attr]; children: openArray[Html]): Html =
   for a in attrs: all.add a
   result = tag("button", all, children)
 
-let chatHtml* = join([
+let chatHtml = join([
   tag("button", [attr("id", "hitl-ask"), attr("class", "filled"), attr("type", "button"),
                  attr("title", "Ctrl+Shift+A")], bubble, "Ask about this"),
   tag("button", [attr("id", "hitl-open"), attr("type", "button"),
@@ -64,7 +64,7 @@ proc page*(title: string; body: Html; wide = false; item = none[int]();
         chatHtml, tag("script", [attr("src", "config.js")]),
         tag("script", [attr("src", "hitl.js")])))])
 
-proc plural*(n: int; word: string): string =
+proc plural(n: int; word: string): string =
   ## "1 file", "2 files".
   $n & " " & word & (if n != 1: "s" else: "")
 
@@ -85,24 +85,11 @@ let
   beforeSeparator = re"[(,;]\s*([,;)])"
   spaces = re"\s\s+"
 
-proc keepGroup(s: string; r: Regex): string =
-  ## `s` with every match of `r` replaced by its first group (Python's re.sub
-  ## with \1).
-  result = ""
-  var caps: seq[Capture] = @[]
-  var i = 0
-  var (a, b) = findBounds(s, r, caps, 0)
-  while a >= 0:
-    result.add s.substr(i, a - 1) & capture(s, caps, 0)
-    i = b + 1
-    (a, b) = findBounds(s, r, caps, i)
-  result.add s.substr(i)
-
-proc untimed*(s: string): string =
+proc untimed(s: string): string =
   ## The evidence pointer without its clock time: "fixer 10:01" -> "fixer";
   ## each part once: "fixer 07:35; fixer 10:37" -> "fixer".
   var t = s.replace(clock, "").replace(emptyBrackets, "")
-  t = keepGroup(keepGroup(t, spaceBefore), beforeSeparator)
+  t = subGroup(subGroup(t, spaceBefore), beforeSeparator)
   var parts: seq[string] = @[]
   for p in t.replace(spaces, " ").split(';'):
     let part = p.strip(chars = {' ', ','})
@@ -130,7 +117,7 @@ const
   GrillQ = "Grill me on this decision before I choose: check the facts the options rest on " &
            "against {against}. Only the points that could change my choice."
 
-proc qact*(cfg: Config): Html =
+proc qact(cfg: Config): Html =
   ## The two chat helpers under a decision: explain the options, grill me.
   let against = if cfg.spec.len > 0: "the spec and the evidence" else: "the evidence"
   result = tag("div", [attr("class", "qact"), attr("hidden", true)],
@@ -141,11 +128,11 @@ proc qact*(cfg: Config): Html =
                        attr("data-q", GrillQ.replace("{against}", against))],
                       [toHtml("Grill me")]))
 
-let qstate* = tag("div", [attr("class", "qstate"), attr("aria-live", "polite"),
+let qstate = tag("div", [attr("class", "qstate"), attr("aria-live", "polite"),
                           attr("hidden", true)])
   ## Where hitl.js says what became of a decision.
 
-proc optButton*(o: string; mark = false; why = ""): Html =
+proc optButton(o: string; mark = false; why = ""): Html =
   ## One option of a decision, a radio; `mark` says it is the suggested one,
   ## with `why`.
   button([attr("class", "opt"), attr("role", "radio"), attr("aria-checked", "false"),
@@ -154,7 +141,7 @@ proc optButton*(o: string; mark = false; why = ""): Html =
           if mark: tag("span", [attr("class", "mark")], "Suggested") else: Html(""),
           if why.len > 0: tag("span", [attr("class", "why")], inline(why)) else: Html("")])
 
-proc decisionHtml*(e: Entry; item: Opt[int]; reference: string; cfg: Config;
+proc decisionHtml(e: Entry; item: Opt[int]; reference: string; cfg: Config;
                    inputs = ""): Html =
   ## The question, then the options as an inset group ending in a field for
   ## your own answer (hitl.js: li.q[data-did], button.opt[data-opt], li.own,
@@ -225,7 +212,7 @@ proc sectionHtml*(key, title: string; n: int; inner: Html; label = ""): Html =
 
 # --------------------------------------------------------------- item pages
 
-proc itemPage*(r: WorkItem; d: Work; prev, next: Opt[int];
+proc itemPage(r: WorkItem; d: Work; prev, next: Opt[int];
                titles: Table[int, string]): Html =
   ## The same sections in the same order on every item page, in one column;
   ## only the code is wider.
@@ -285,7 +272,7 @@ proc itemPage*(r: WorkItem; d: Work; prev, next: Opt[int];
 
 # --------------------------------------------------------------------- index
 
-const Lanes* = [("decide", "Waiting for your decision"),
+const Lanes = [("decide", "Waiting for your decision"),
                 ("review", "Needs another review"),
                 ("clear", "Nothing open")]
   ## The index's lanes, each key with its heading; the order never changes.
@@ -324,7 +311,7 @@ proc updated*(d: Work): string =
            else: MonthNames[ord(t.month) - 1] & " " & $t.monthday & " " & clock
   result = capitalize(extractFilename(d.repo)) & ", updated " & at
 
-proc indexPage*(d: Work): Html =
+proc indexPage(d: Work): Html =
   ## Three lanes, always in the same order, grouping the items by what they
   ## need from you; item-number order inside each lane.
   var reps = d.items
@@ -422,6 +409,9 @@ proc build*(spath, dest: string; cfg = none[Config]()): Result[string, string] =
       if kind == pcFile:
         doing = "copy " & $f
         writeAtomic(dest & "/" & extractFilename($f), readFile($f))
+    # {item: tip} is a Table, which std/json's toJson cannot write
+    # (bug-reports/112-json-tojson-table-field-fails-in-json-nim): the object
+    # is joined from its members, spaced as Python's json.dumps writes it
     var tips: seq[string] = @[]
     for r in d.items: tips.add quote($r.n) & ": " & quote(r.code.tip)
     doing = "write " & dest & "/tips.json"

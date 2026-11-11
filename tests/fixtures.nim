@@ -45,51 +45,46 @@ proc sh*(cwd: string; cmd: openArray[string]; date = "2026-11-09T08:05:00Z"): st
 
 # ----------------------------------------------------- transcript records
 
-proc str*(s: string): string =
-  ## s as a JSON string.
-  var t = toJson(s)
-  result = $t
-
 proc obj*(fields: openArray[(string, string)]): string =
   ## A JSON object of the given members; each value is JSON text already.
   result = "{"
   for i, (k, v) in fields:
     if i > 0: result.add ", "
-    result.add str(k) & ": " & v
+    result.add quote(k) & ": " & v
   result.add "}"
 
 proc user*(text, ts: string; cwd = ""): string =
   ## A message the human typed (test_hitl.py's user()), with cwd if given.
-  var f = @[("type", str"user"), ("timestamp", str(ts)), ("origin", obj([("kind", str"human")])),
-            ("uuid", str("u-" & ts)), ("message", obj([("content", str(text))]))]
-  if cwd.len > 0: f.add ("cwd", str(cwd))
+  var f = @[("type", quote"user"), ("timestamp", quote(ts)), ("origin", obj([("kind", quote"human")])),
+            ("uuid", quote("u-" & ts)), ("message", obj([("content", quote(text))]))]
+  if cwd.len > 0: f.add ("cwd", quote(cwd))
   result = obj(f)
 
 proc tool*(name, id: string; input: openArray[(string, string)]): string =
   ## A tool_use block's members (name, id, input) for assistant().
-  obj([("type", str"tool_use"), ("name", str(name)), ("id", str(id)), ("input", obj(input))])
+  obj([("type", quote"tool_use"), ("name", quote(name)), ("id", quote(id)), ("input", obj(input))])
 
 proc bash*(id, command: string): string =
   ## A Bash tool use, for assistant().
-  tool("Bash", id, [("command", str(command))])
+  tool("Bash", id, [("command", quote(command))])
 
 proc assistant*(ts: string; text = ""; tool = ""; cwd = ""): string =
   ## A record of the session speaking (test_hitl.py's assistant()): a text
   ## block, a tool_use block (see tool and bash), or both; with cwd if given.
   var content: seq[string] = @[]
-  if text.len > 0: content.add obj([("type", str"text"), ("text", str(text))])
+  if text.len > 0: content.add obj([("type", quote"text"), ("text", quote(text))])
   if tool.len > 0: content.add tool
-  var f = @[("type", str"assistant"), ("timestamp", str(ts)),
+  var f = @[("type", quote"assistant"), ("timestamp", quote(ts)),
             ("message", obj([("content", "[" & content.join(", ") & "]")]))]
-  if cwd.len > 0: f.add ("cwd", str(cwd))
+  if cwd.len > 0: f.add ("cwd", quote(cwd))
   result = obj(f)
 
 proc toolResult*(id, ts: string; cwd = ""): string =
   ## The record of a tool call's result, made at ts.
-  var f = @[("type", str"user"), ("timestamp", str(ts)),
-            ("message", obj([("content", "[" & obj([("type", str"tool_result"),
-              ("tool_use_id", str(id)), ("content", str"ok")]) & "]")]))]
-  if cwd.len > 0: f.add ("cwd", str(cwd))
+  var f = @[("type", quote"user"), ("timestamp", quote(ts)),
+            ("message", obj([("content", "[" & obj([("type", quote"tool_result"),
+              ("tool_use_id", quote(id)), ("content", quote"ok")]) & "]")]))]
+  if cwd.len > 0: f.add ("cwd", quote(cwd))
   result = obj(f)
 
 proc writeJsonl*(p: string; recs: openArray[string]) =
@@ -133,15 +128,15 @@ proc fake*(split: openArray[(string, seq[string])] = []; brief = ""; raw = ""): 
   var housekeeping = "[]"
   for (key, handles) in split:
     var hs: seq[string] = @[]
-    for h in handles: hs.add str(h)
+    for h in handles: hs.add quote(h)
     if key == "housekeeping":
       housekeeping = "[" & hs.join(", ") & "]"
     elif key.len > 0 and key.allCharsInSet(Digits):
       items.add obj([("id", key), ("handles", "[" & hs.join(", ") & "]")])
     else:
-      items.add obj([("title", str(key)), ("handles", "[" & hs.join(", ") & "]")])
+      items.add obj([("title", quote(key)), ("handles", "[" & hs.join(", ") & "]")])
   writeText(tmp() & "/plan.json", obj([("split", "[" & items.join(", ") & "]"),
-    ("housekeeping", housekeeping), ("brief", str(brief)), ("raw", str(raw))]))
+    ("housekeeping", housekeeping), ("brief", quote(brief)), ("raw", quote(raw))]))
   let bin = (try: $paths.getCurrentDir() except: ".") & "/nimcache/tests/bin"
   try:
     putEnv("FAKE_PLAN", tmp() & "/plan.json")
@@ -219,22 +214,22 @@ proc setUp*() =
       "\"uuid\": \"u-2026-11-09T08:00:00Z\"", "\"uuid\": \"u0\""),
     assistant("2026-11-09T08:30:00Z", "The fix is done; the review agrees. Push it?"),
     user("looks fine, push it", "2026-11-09T08:31:00Z"),
-    obj([("type", str"system"), ("subtype", str"turn_duration"), ("timestamp", str"2026-11-09T08:31:05Z")])])
+    obj([("type", quote"system"), ("subtype", quote"turn_duration"), ("timestamp", quote"2026-11-09T08:31:05Z")])])
   let sub = proj & "/" & Sid & "/subagents"
   writeJsonl(sub & "/agent-a1111111111111111.jsonl", [
-    obj([("type", str"user"), ("timestamp", str"2026-11-09T08:01:00Z"),
-         ("message", obj([("content", str("Fix it in " & wt))]))]),
+    obj([("type", quote"user"), ("timestamp", quote"2026-11-09T08:01:00Z"),
+         ("message", obj([("content", quote("Fix it in " & wt))]))]),
     assistant("2026-11-09T08:04:30Z", tool = bash("t1", "cd " & wt & " && git commit -q -m x")),
     assistant("2026-11-09T08:10:00Z", tool = tool("SubagentHandback", "t2", [("message",
-      str("## Fix\n\nThe default is **typed** in `sem`.\n\n- one\n- two\n"))]))])
+      quote("## Fix\n\nThe default is **typed** in `sem`.\n\n- one\n- two\n"))]))])
   writeText(sub & "/agent-a1111111111111111.meta.json",
-            obj([("description", str"Fix the field default crash"), ("finished", "true")]))
+            obj([("description", quote"Fix the field default crash"), ("finished", "true")]))
   writeJsonl(sub & "/agent-a2222222222222222.jsonl", [
-    obj([("type", str"user"), ("timestamp", str"2026-11-09T08:12:00Z"),
-         ("message", obj([("content", str"Review commit abc")]))]),
+    obj([("type", quote"user"), ("timestamp", quote"2026-11-09T08:12:00Z"),
+         ("message", obj([("content", quote"Review commit abc")]))]),
     assistant("2026-11-09T08:20:00Z", "Verdict: well integrated.")])
   writeText(sub & "/agent-a2222222222222222.meta.json",
-            obj([("description", str"Review field default typing"), ("finished", "true")]))
+            obj([("description", quote"Review field default typing"), ("finished", "true")]))
 
   # one agent, no subagents: two fixes committed in its own checkout, the first amended
   let solo = root & "/solo/app"

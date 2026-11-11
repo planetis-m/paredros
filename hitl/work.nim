@@ -80,13 +80,13 @@ type
     ## A transcript of the session, with whose it is.
     owner*: Opt[string]  ## none for the main session, else the agent's key
     recs*: seq[Rec]
-  GitCall* = object
+  GitCall = object
     ## A git command that can make commits.
-    dir*: string         ## where it ran
-    start*, finish*: float  ## the call and its recorded result, in epoch seconds
-    owner*: Opt[string]  ## whose transcript made it
+    dir: string          # where it ran
+    start, finish: float # the call and its recorded result, in epoch seconds
+    owner: Opt[string]   # whose transcript made it
 
-proc gitCalls*(transcripts: seq[Transcript]): seq[GitCall] =
+proc gitCalls(transcripts: seq[Transcript]): seq[GitCall] =
   ## Every git command that can make commits, per transcript, so a commit is
   ## matched to the call that made it. The directory is the command's own
   ## `cd` or `git -C` target where it still exists, else the directory the

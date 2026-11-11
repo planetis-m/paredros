@@ -3,7 +3,8 @@
 ## Standard library only. The server answers only requests addressed to
 ## 127.0.0.1 or localhost and its port, and requires a per-run token on every
 ## POST, so another web page can neither read the pages nor act on your
-## behalf. The first question forks the session (`claude -p --resume <id>
+## behalf. It listens on every interface, though (see the GAP in `run`): a
+## client on the network can read the token from /config.js. The first question forks the session (`claude -p --resume <id>
 ## --fork-session`); later questions continue that fork, so the companion
 ## keeps the conversation. The session itself is never touched.
 
@@ -27,7 +28,7 @@ the agents should settle it by the repository's conventions."""
 
 # ------------------------------------------------------------------- prompts
 
-proc pageWords*(b: Brief): string =
+proc pageWords(b: Brief): string =
   ## A parsed brief as plain text with the page's section names, not the JSON keys.
   var lines = @[b.summary]
   for s in Section:
@@ -43,7 +44,7 @@ proc pageWords*(b: Brief): string =
       if e.source.len > 0: lines.add "   From: " & e.source
   result = lines.join("\n")
 
-proc briefText*(sid: string; n: int; limit = 12_000): string =
+proc briefText(sid: string; n: int; limit = 12_000): string =
   ## The item's brief as the page shows it, under the page's headings, for the
   ## question itself: the companion then starts from the page's words instead
   ## of the session's. n 0: the index page. Cut to limit characters.
@@ -361,10 +362,9 @@ proc handle(c: sink HttpConnection; s: Server) {.passive.} =
       if refuse.isSome:
         reply(c, refuse.get(bare(500)), s.tags)
       elif c.meth == tag(mPost):
-        # GAP: a body over 1 MiB closes the connection unanswered, where
-        # Python reads any length, because std/httpserver's readBody has no
-        # form without a limit.
-        reply(c, act(s, c.path, c.readBody()), s.tags)
+        # any length, as Python reads Content-Length bytes: only the
+        # pages' own script, holding the token, gets this far
+        reply(c, act(s, c.path, c.readBody(limit = high(int))), s.tags)
       else:
         let r = page(s, c)
         if r.isOk:
@@ -374,7 +374,7 @@ proc handle(c: sink HttpConnection; s: Server) {.passive.} =
           stderr.writeLine "hitl: " & r.error("")
           c.close()
     except ErrorCode:
-      c.close()   # the client went away, or its body was too large
+      c.close()   # the client went away
 
 proc acceptLoop(listener: sink HttpServer; s: Server) {.passive.} =
   ## Gives each connection a chain of its own, so a slow answer holds up no other.
@@ -407,7 +407,8 @@ proc run*(s: Server) =
   # and the token still hold), because std/httpserver's listenHttp takes no
   # address (bug-reports/113-listenhttp-cannot-choose-listen-address).
   # GAP: a port in use stops hitl with a failed assertion, not a message,
-  # because std/ioring's listenTcp asserts that bind succeeds.
+  # because std/ioring's listenTcp asserts that bind succeeds
+  # (bug-reports/109-listentcp-asserts-on-busy-port).
   var listener = listenHttp(uint16(s.port), s.tags)
   s.port = int(boundPort(listener.fd))   # the Host check needs the real one when port was 0
   let url = "http://127.0.0.1:" & $s.port & "/"

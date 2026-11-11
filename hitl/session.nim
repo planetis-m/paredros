@@ -10,7 +10,7 @@ import std/[syncio, strutils, os, paths, dirs, envvars, algorithm, tables,
 import std/posix/posix
 import state
 
-proc configDir*(): string =
+proc configDir(): string =
   ## Claude Code's config directory: $CLAUDE_CONFIG_DIR, else ~/.claude.
   # Read on every call, not once: the tests point it at a temp directory.
   getEnv("CLAUDE_CONFIG_DIR", getEnv("HOME") & "/.claude")
@@ -40,6 +40,7 @@ type
     blocks*: seq[Block]     ## message.content when it is a list
 
 proc readBlock(n: JsonNode): Block =
+  ## One content block: the fields hitl reads.
   result = Block()
   for k, v in pairs(n):
     case k
@@ -56,6 +57,7 @@ proc readBlock(n: JsonNode): Block =
     else: discard
 
 proc readRec(n: JsonNode): Rec =
+  ## One record: the fields hitl reads.
   result = Rec()
   for k, v in pairs(n):
     case k
@@ -89,12 +91,12 @@ proc readJsonl*(path: string): seq[Rec] =
     if not t.hasError and t.root.kind == JObject:
       result.add readRec(t.root)
 
-type ToolUse* = object
+type ToolUse = object
   ## A tool call, with the time of the record that made it.
-  timestamp*: string
-  tool*: Block
+  timestamp: string
+  tool: Block
 
-proc toolUses*(recs: openArray[Rec]): seq[ToolUse] =
+proc toolUses(recs: openArray[Rec]): seq[ToolUse] =
   ## Every tool call the session made, in order.
   result = @[]
   for r in recs:
@@ -131,7 +133,7 @@ proc textOf*(r: Rec): string =
     t = parts.join(" ")
   result = t.replace(pasted, "").strip
 
-proc toolResults*(recs: openArray[Rec]): Table[string, string] =
+proc toolResults(recs: openArray[Rec]): Table[string, string] =
   ## {tool_use id: timestamp} for every tool result: when each call ended.
   result = initTable[string, string]()
   for r in recs:

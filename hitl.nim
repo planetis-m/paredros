@@ -48,6 +48,7 @@ proc number(option, value: string; default: int): int =
   else: (try: parseInt(value) except: fail("invalid value for " & option & ": " & value))
 
 proc main() =
+  ## Reads the command line, picks the session and its config, runs the command.
   # GAP: with no command the help follows "[Error] missing arguments" and
   # hitl exits 1, where Python prints the help alone and exits 0; a bad
   # command line is told on stdout with the help and exit 1, not on stderr

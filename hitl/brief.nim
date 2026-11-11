@@ -33,7 +33,7 @@ const Sections*: array[Section, tuple[key, heading: string]] = [
   ("decisions_made", "Decisions made")]
   ## Each list's key in the brief's JSON and its heading on the page.
 
-const Split* = """You sort the material of a Claude Code session into work items, for a human who
+const Split = """You sort the material of a Claude Code session into work items, for a human who
 reviews the work. A work item is one piece of work they may want to review or
 decide on: a bug fixed, a module or file ported, a feature, a design change.
 
@@ -61,7 +61,7 @@ Rules:
 """
   ## The split's prompt; {existing} and {material} are filled in.
 
-const Prompt* = """You write a decision brief about one work item from a Claude Code session, for
+const Prompt = """You write a decision brief about one work item from a Claude Code session, for
 {reader}, who must make the decisions themselves, from facts, without being
 overloaded.
 
@@ -357,15 +357,15 @@ proc loadLedger*(sid: string): Result[Ledger, string] =
 
 proc ledgerJson(led: Ledger): string =
   ## The ledger as its file holds it.
-  var items: seq[string] = @[]
-  for it in led.items:
-    items.add "{\"id\": " & $it.id & ", \"title\": " & quote(it.title) &
-      ", \"sources\": " & quote(it.sources) & "}"
+  # seen is a Table, which std/json's toJson cannot write
+  # (bug-reports/112-json-tojson-table-field-fails-in-json-nim): that object
+  # is joined from its members
   var seen: seq[string] = @[]
-  for k, v in pairs(led.seen): seen.add quote(k) & ": " & $v
-  # GAP: written on one line, where Python indents, because std/json has no
-  # pretty printer; non-ASCII text is written as it is, where Python escapes it.
-  result = "{\"items\": [" & items.join(", ") & "], \"seen\": {" & seen.join(", ") & "}}"
+  for k, v in pairs(led.seen): seen.add quote(k) & ":" & $v
+  # GAP: written on one line, where Python indents, and non-ASCII text as it
+  # is, where Python escapes it, because std/json has no pretty printer and
+  # no ASCII mode.
+  result = "{\"items\":" & quote(led.items) & ",\"seen\":{" & seen.join(",") & "}}"
 
 proc fingerprint(key: string; texts: seq[string]): int =
   ## What makes a source worth sorting again: a turn that grew. Agents and
@@ -501,7 +501,7 @@ proc split*(sid: string; src: Sources; model = "opus"): Result[Ledger, string] =
 
 # -------------------------------------------------------------------- briefs
 
-proc gather*(r: WorkItem; diffLimit = 60_000; turnLimit = 8000): string =
+proc gather(r: WorkItem; diffLimit = 60_000; turnLimit = 8000): string =
   ## The brief's inputs as one text, oldest first.
   var parts = @["# Work item: " & r.title]
   for i in max(r.turns.len - 5, 0) ..< r.turns.len:
@@ -576,29 +576,48 @@ proc load*(sid: string; n: int): Opt[Cached] =
     else: discard
   result = some(c)
 
-proc cachedJson(c: Cached): string =
-  ## A cached brief as its file holds it: each entry with its list's fields.
-  # GAP: on one line, as ledgerJson.
-  var lists: seq[string] = @[]
-  for s in Section:
-    var entries: seq[string] = @[]
-    for e in c.brief.lists[s]:
-      entries.add(case s
-        of OpenDecisions:
-          "{\"question\": " & quote(e.question) & ", \"reason\": " & quote(e.reason) &
-            ", \"spec\": " & quote(e.spec) & ", \"source\": " & quote(e.source) &
-            ", \"options\": " & quote(e.options) & ", \"recommended\": " & $e.recommended & "}"
-        of DecisionsMade:
-          "{\"text\": " & quote(e.text) & ", \"why\": " & quote(e.why) & ", \"source\": " &
-            quote(e.source) & "}"
-        else:
-          "{\"text\": " & quote(e.text) & ", \"source\": " & quote(e.source) & "}")
-    lists.add quote(Sections[s].key) & ": [" & entries.join(", ") & "]"
-  result = "{\"inputs\": " & quote(c.inputs) & ", \"generated\": " & quote(c.generated) &
-    ", \"model\": " & quote(c.model) & ", \"brief\": {\"summary\": " & quote(c.brief.summary) &
-    ", " & lists.join(", ") & "}}"
+type
+  # A cached brief as its file holds it, for std/json's toJson: each list's
+  # entries with that list's fields only. The field names are the file's
+  # keys, brief.py's, so they keep its spelling.
+  DecisionRecord = object
+    question, reason, spec, source: string
+    options: seq[string]
+    recommended: int
+  FindingRecord = object
+    text, source: string
+  MadeRecord = object
+    text, why, source: string
+  BriefRecord = object
+    summary: string
+    open_decisions: seq[DecisionRecord]
+    spec_conflicts, needs_review, bug_risks: seq[FindingRecord]
+    decisions_made: seq[MadeRecord]
+  CachedRecord = object
+    inputs, generated, model: string
+    brief: BriefRecord
 
-proc generate*(r: WorkItem; d: Work; model = "opus";
+proc cachedJson(c: Cached): string =
+  ## A cached brief as its file holds it.
+  proc findings(list: seq[Entry]): seq[FindingRecord] =
+    ## A list's entries as findings: text and source.
+    result = @[]
+    for e in list: result.add FindingRecord(text: e.text, source: e.source)
+  let lists = c.brief.lists
+  var b = BriefRecord(summary: c.brief.summary, open_decisions: @[], decisions_made: @[],
+                      spec_conflicts: findings(lists[SpecConflicts]),
+                      needs_review: findings(lists[NeedsReview]),
+                      bug_risks: findings(lists[BugRisks]))
+  for e in lists[OpenDecisions]:
+    b.open_decisions.add DecisionRecord(question: e.question, reason: e.reason, spec: e.spec,
+                                        source: e.source, options: e.options,
+                                        recommended: e.recommended)
+  for e in lists[DecisionsMade]:
+    b.decisions_made.add MadeRecord(text: e.text, why: e.why, source: e.source)
+  # GAP: on one line and non-ASCII text as it is, as ledgerJson.
+  result = quote(CachedRecord(inputs: c.inputs, generated: c.generated, model: c.model, brief: b))
+
+proc generate(r: WorkItem; d: Work; model = "opus";
                force = false): Result[(Cached, bool), string] =
   ## Item r's brief: the cached one when its inputs did not change (and not
   ## force), else a new one from the model, written to the cache. True when

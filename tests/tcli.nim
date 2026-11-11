@@ -53,7 +53,8 @@ block no_command_prints_the_help:
   let r = hitl(["--session=" & Sid.substr(0, 7)])
   assert "Usage: hitl [options] brief [N...] | serve" in r.output, r.output
   assert "--port=PORT" in r.output and "--jobs=JOBS" in r.output, "every option"
-  # GAP: exit status 1 after "[Error] missing arguments", where Python exits 0
+  # exit status 1 after "[Error] missing arguments", where Python exits 0
+  # (the GAP in hitl.nim)
   assert r.code == 1
 
 tearDown()

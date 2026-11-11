@@ -23,6 +23,7 @@
 ## the one here is written so that one reading is the one Python takes.
 
 import std/[strutils, parseutils, unicode, rex, opt]
+import state
 
 type
   Html* = distinct string
@@ -41,7 +42,7 @@ proc raw*(markup: string): Html =
   ## A constant piece of markup written in the code (an icon), trusted as is.
   Html(markup)
 
-proc esc*(s: string): string =
+proc esc(s: string): string =
   ## Text for HTML content or an attribute value: <, >, & and quotes escaped
   ## (Python's html.escape).
   result = newStringOfCap(s.len)
@@ -165,19 +166,6 @@ let
   strong = re"\*\*([^*\s](?:\s*[^*\s])*)\*\*"
   em = re"\B\*([^*\s](?:\s*[^*\s])*)\*\B"
 
-proc wrap(s: string; r: Regex; open, close: string): string =
-  ## `s` with every match of `r` replaced by its first group between `open`
-  ## and `close` (Python's re.sub with \1).
-  result = ""
-  var caps: seq[Capture] = @[]
-  var i = 0
-  var (a, b) = findBounds(s, r, caps, 0)
-  while a >= 0:
-    result.add s.substr(i, a - 1) & open & capture(s, caps, 0) & close
-    i = b + 1
-    (a, b) = findBounds(s, r, caps, i)
-  result.add s.substr(i)
-
 proc alnumBefore(text: string; i: int): bool =
   ## Is the character before byte `i` a letter or a digit?
   # GAP: a non-ASCII digit (Python's str.isalnum()) is not one, because
@@ -240,7 +228,7 @@ proc inline*(text: string): Html =
     of None:
       output.add text.substr(i, i + used - 1)
     i += used
-  var s = wrap(wrap(esc(output), strong, "<strong>", "</strong>"), em, "<em>", "</em>")
+  var s = subGroup(subGroup(esc(output), strong, "<strong>", "</strong>"), em, "<em>", "</em>")
   # the set-aside pieces back in their slots
   var html = ""
   var k = s.find(SlotOpen)

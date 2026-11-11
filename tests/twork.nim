@@ -10,10 +10,12 @@ import ../hitl/[session, brief, work]
 setUp()
 
 proc subjects(cms: seq[Commit]): seq[string] =
+  ## The commits' subjects.
   result = @[]
   for c in cms: result.add c.subject
 
 proc titles(led: Ledger): seq[(int, string)] =
+  ## The ledger's items as (id, title).
   result = @[]
   for it in led.items: result.add (it.id, it.title)
 
@@ -106,6 +108,7 @@ block commits_are_matched_to_the_call_that_made_them:
              "2026-11-09T12:10:05Z")
   discard sh(rp, ["git", "worktree", "remove", wt])   # its HEAD reflog is gone now
   proc call(recs: var seq[string]; i: int; ts, cmd, done: string; rp = tmp() & "/calls") =
+    ## A Bash call made at ts and its result at done.
     recs.add assistant(ts, tool = bash("c" & $i, cmd), cwd = rp)
     recs.add toolResult("c" & $i, done, rp)
   var main, agent: seq[string] = @[]

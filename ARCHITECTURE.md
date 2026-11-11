@@ -1,12 +1,13 @@
 # hitl: architecture
 
-Status: locked. Every change to the code follows this file. To do something
-it does not allow, get the user's approval first and update this file in the
-same commit. `DESIGN.md` governs the pages (look, strings, behaviour); this
-file governs everything else. Where the two meet (endpoints, data attributes,
-draft text), both apply.
-
----
+The Nimony port of hitl. The behaviour, the data model and the rules are the
+Python version's (`~/Projects/hitl/ARCHITECTURE.md`, which also keeps the
+review findings that led to them); this file says the same for the Nimony
+code and marks where it differs. `DESIGN.md` governs the pages (look,
+strings, behaviour); this file governs everything else; `PORTING.md` holds
+the port's conventions and its Gaps: what the standard library cannot match
+yet. To change what this file settles, get the user's approval first and
+update it in the same commit.
 
 ## 1. Purpose and non-goals
 
@@ -20,11 +21,7 @@ understand the work and decide. It offers:
   the code;
 - a read-only companion: a fork of the session the human can question;
 - decision drafts: the human's saved answers, re-checked against current facts
-  before the human copies them and pastes them into the session.
-
-hitl is a browser GUI: `hitl serve` builds the pages and serves them with the
-drafts and the chat; `hitl brief` starts the model runs, which cost money, only
-when the human asks.
+  before the human copies them and pastes them into the session;
 
 Non-goals:
 - Controlling the session. hitl never sends, stops, resumes or launches
@@ -32,8 +29,9 @@ Non-goals:
 - Burdening agents. No skills, hooks, protocol, files or extra reporting for
   them. They never know hitl exists.
 - Writing to repositories, worktrees, transcripts, PRs or any upstream.
-- Being a product: no accounts, no multi-user, no remote access, no database,
-  no build step, no plugins.
+- Being a product: no accounts, no multi-user, no remote access (but see
+  6.3: the Nimony server cannot yet refuse the network), no database, no
+  plugins; the one build step is `./build.sh`.
 - Tracking logistics (PRs, branches, CI) on the pages.
 
 ## 2. Settled decisions
@@ -42,60 +40,70 @@ These were decided with the user. Reopening one needs the user's approval.
 
 | Topic | Decision |
 |---|---|
-| Dependencies | The Nimony standard library, two Nimony libraries (kroki for JSON, hashi for HTTP), `git` and the `claude` CLI. No frameworks, database or npm; one build step (`./build.sh`). No downloaded third-party binaries; Fedora packages are fine. |
+| Dependencies | Nimony and its standard library, `git` and the `claude` CLI. No third-party Nimony code (the first port used kroki and hashi; the redo removed them), no database or npm. Where the standard library falls short, the code accepts the inaccuracy and records it (PORTING.md, Gaps). |
 | Model calls | All through `claude -p` on the user's subscription. No other vendor or API: decision APIs (OpenAI's Decisions API, TypeSafe's Jev) were evaluated and rejected because the tasks are generative, need tool use and run rarely. |
 | Structured output | Approved next step: `--json-schema` for the split and the brief, replacing regex JSON extraction. |
-| Server | A minimal hashi server on 127.0.0.1, with a per-run token and an Origin check, used only for acting features (companion chat, saving, re-checking, copying). Static file mode stays for reading. |
+| Server | A minimal std/httpserver server with a Host check, a per-run token and an Origin check, used only for acting features (companion chat, saving, re-checking, copying). Static file mode stays for reading. It should bind 127.0.0.1 only; it cannot yet (6.3). |
 | State | Plain files under `$XDG_STATE_HOME/hitl` (default `~/.local/state/hitl/`). |
-| Config | Per project, JSON (`.hitl.json`), read with kroki. Replaces `.hitl.toml`/`tomllib`. |
+| Config | Per project, JSON (`.hitl.json`), read with std/json. Replaces `.hitl.toml`/`tomllib`. |
 | Agents | Never burdened (section 1). |
 | Precompute | Everything that can be computed ahead is computed ahead (briefs, spec lines, recommendations). The companion does only live work. |
 | UI | `DESIGN.md` is frozen and governs the pages. |
 
 ## 3. Components
 
-One responsibility each. No module reaches into another's files directly;
-they call each other's functions.
+One responsibility each, in layers: a module imports only from the layers
+above it in this table, never from below, so there are no import cycles and
+no imports inside procs. No module reaches into another's files directly;
+they call each other's procs. Only `hitl.nim` exits the process. A failure
+the user is told about is a `Result[T, string]` with the message, passed up
+each layer: the CLI prints it as `hitl: <message>` and exits 1, the server
+answers it as JSON. Absence is `Opt[T]`; standard-library I/O raises the
+system `ErrorCode`, caught at the first routine that has an answer. There
+are no exception types.
 
 | Module | Responsibility |
 |---|---|
-| `hitl.nim` | Entry point and CLI (`brief`, `serve`). |
-| `hitl/core.nim` | The only adapter to Claude Code's transcript format and to git (`git()` is the one git runner). Config loading. State paths. The process runner. |
-| `hitl/items.nim` | Turns transcripts + git into sources (turns, agents, commits) and work items with their current code (`workItems`). Owns the ledger and brief files and their types. Does no model calls. |
-| `hitl/briefs.nim` | Model work that can be precomputed: the split (sources into ledger items) and one brief per item, both cached; the two prompts and schemas. |
-| `hitl/companion.nim` | The companion's arguments and permission profile; the companion conversation the server runs. |
-| `hitl/drafts.nim` | Drafts: write, read, withdraw, re-check, delivery detection. |
-| `hitl/review.nim` | Renders the pages from items and briefs (`build`). Writes only the output directory. |
-| `hitl/serve.nim` | The local server: serves the built pages, the token, and five POST actions that call `hitl` functions; runs the one companion conversation per run. No logic of its own beyond routing and the security checks. |
-| `hitl/html.nim`, `hitl/pages.nim` | Escaping, the markdown subset, lanes and diff parsing; the page templates (a stdtmpl source filter). |
-| `companion.md` | The companion's system prompt (a template filled by `companion.companionSetup`). |
-| `DESIGN.md` | The page design spec. |
-| `static/hitl.css`, `static/hitl.js` | The pages' CSS and JS, one file each, copied beside the pages by `build`. |
-| `tests/` | Tests on throwaway git repos and fixture transcripts, with a fake model. |
+| `hitl/state.nim` | hitl's own files: the state folder per session (`state()`), atomic writes, the list of companion forks, the repository the binary was built in (`appDir`, for `companion.md` and `static/`), and the text helpers every layer shares (`collapse`, `quote` for JSON text, `subGroup`). |
+| `hitl/session.nim` | What hitl reads, read only: Claude Code's transcripts (the only module that knows their format: records, tool calls and their results, typed messages, agents, sessions), the one way to run a child process (`run()`: its own process group, killed whole on timeout), the git runner (`git()`, the only one), and the git commands a transcript ran that may make commits (`gitWrites`). |
+| `hitl/config.nim` | The project's config (`load(cwd, path)`): a value, loaded once by the CLI and passed down; code given none loads the session's default. |
+| `hitl/render.nim` | All HTML: `tag()` escapes text and attribute values unless a value is markup it built (`Html`, a distinct string) or a constant icon (`raw`); `inline` and `markdown` render a declared Markdown subset, and anything outside it stays as written; `diff` renders a unified diff by its hunk counts, names renames, mode changes and binary files, and past 600,000 characters shows whole files only and says how many it left out. No I/O. |
+| `hitl/brief.nim` | Model work that can be precomputed: the split (sources into ledger items) and one brief per item, both cached; the prompts and schemas; the decision id. Owns the ledger and brief files, and declares the material's types (`Turn`, `Worker`, `Commit`, `Sources`, `WorkItem`, `Work`). |
+| `hitl/work.nim` | The work as data: sources (turns, agents, commits) under stable keys, commits matched to the git calls that made them, each item's current code, and `collect`, which joins them with the ledger and the briefs. No model calls, no writes. |
+| `hitl/pages.nim` | The item and index pages from `collect`, all HTML through `render`; `build` writes them to the output directory only. |
+| `hitl/drafts.nim` | Saved decisions: write, read, withdraw, re-check, delivery detection. |
+| `hitl/companion.nim` | The companion's setup: restricted mode, its permission profile, its system prompt, its directories. |
+| `hitl/serve.nim` | The local server: serves the built pages, the token, and five POST actions that call `drafts`; holds the one companion conversation per run. Each connection runs on the thread pool; one question at a time goes to the companion. |
+| `hitl.nim` | The CLI (std/smartcli: `brief`, `serve`): picks the session, loads the config, turns an error result into an exit message. |
+| `companion.md` | The companion's system prompt (a template filled by `companion.setup`). |
+| `DESIGN.md` | The page design spec (a copy of the Python's). |
+| `static/hitl.css`, `static/hitl.js` | The pages' CSS and JS, copied beside the pages by `build` (copies of the Python's). |
+| `tests/` | `t<module>.nim` per module (the Python's `test_hitl.py`), `fixtures.nim` (throwaway git repositories and transcripts in a temp directory), `fakeclaude.nim` (a fake `claude` put first on PATH), `run`. |
+| `build.sh` | Builds with a private copy of the Nimony toolchain in `nimcache/toolchain`. |
 
 Data flow:
 
 ```
  Claude Code (never written)                 git repos and worktrees (read only)
- ~/.claude/projects/<proj>/<sid>.jsonl        HEAD reflogs, rev-list, diff, log
+ ~/.claude/projects/<proj>/<sid>.jsonl        reflogs (log -g --all), rev-list, diff, log
    + <sid>/subagents/agent-*.jsonl|.meta.json           |
                  |                                      |
                  +---------------+----------------------+
                                  v
-                hitl/core   transcript + git adapters, config
+                session.nim  transcripts + git            config.nim
                    |
                    v
-                items.workItems  sources -> items (ledger) -> current code
+                work.collect   sources -> items (ledger) -> current code
                    |        ^
                    v        |  items.json, i<N>.json
-                briefs    split (claude -p) | brief per item (claude -p, Read/Grep/Glob)
+                brief.nim split (claude -p) | brief per item (claude -p, Read/Grep/Glob)
                    |
                    v
-                review.build  -> review/<s>/index.html, i<N>.html    (file mode: read only)
+                pages.build  -> review/<s>/index.html, i<N>.html    (file mode: read only)
                    |
                    v
-                serve    127.0.0.1:<port>   GET pages, /config.js (token)
-                   |   POST /drafts /decide /send /withdraw -> hitl drafts -> directions/<s>/d<N>.md
+                serve.nim :<port> (all interfaces) GET pages, /config.js (token)
+                   |   POST /drafts /decide /send /withdraw -> drafts.nim -> directions/<s>/d<N>.json
                    |   POST /ask -> companion (claude -p --resume <sid> --fork-session, then --resume <fork>)
                    v
                 human copies the re-checked text  -->  pastes it into the session
@@ -113,7 +121,7 @@ then rename).
 |---|---|---|
 | Turn | `turn:<uuid>` | the main transcript cut at each human-typed message: the human's text and everything the session said until the next one |
 | Agent | `agent:<agent id>` | a subagent transcript: description (meta), task (first user message), final report (`SubagentHandback`, else last text) |
-| Commit | `commit:<sha>` | HEAD reflog entries that made a commit, in each worktree where the session ran a committing git command, within 120 s after such a call, still reachable from a ref |
+| Commit | `commit:<sha>` | reflog entries (every worktree's HEAD and every branch, read with one `git log -g --all` per repository) that made a commit while one of the session's committing git commands ran (its call to its recorded result, 2 s slack; 120 s when no result was recorded), still reachable from a ref; its agent is the transcript that ran the command |
 
 Keys are stable for the life of the transcript and the repository. Commits
 come from git, never from the model.
@@ -123,9 +131,11 @@ come from git, never from the model.
 `$STATE/briefs/<s>/items.json`:
 
 ```json
-{"items": [{"id": 1, "title": "Parser accepts empty input", "sources": ["turn:u1", "commit:ab12..."]}],
- "seen": {"turn:u1": 412, "commit:ab12...": 0}}
+{"items":[{"id":1,"title":"Parser accepts empty input","sources":["turn:u1","commit:ab12..."]}],"seen":{"turn:u1":412,"commit:ab12...":0}}
 ```
+
+The port writes its JSON files on one line (std/json has no pretty printer)
+where the Python indents them; each reads the other's.
 
 - `id` is assigned by code (next free integer), never by the model, never
   reused, never renumbered.
@@ -147,7 +157,7 @@ come from git, never from the model.
 ```json
 {"inputs": "<sha256(full prompt)[:16]>", "generated": "2026-11-09T17:57:00", "model": "opus",
  "brief": {"summary": "...",
-           "open_decisions": [{"question": "", "options": [], "recommendation": "", "spec": "", "source": ""}],
+           "open_decisions": [{"question": "", "reason": "", "spec": "", "source": "", "options": [], "recommended": -1}],
            "spec_conflicts": [{"text": "", "source": ""}], "needs_review": [...], "bug_risks": [...],
            "decisions_made": [{"text": "", "why": "", "source": ""}]}}
 ```
@@ -163,42 +173,47 @@ come from git, never from the model.
 
 ### 4.4 Drafts and their facts
 
-`$STATE/directions/<s>/d<N>.md`:
+`$STATE/directions/<s>/d<N>.json`:
 
 ```
-facts:
-- decision <item>:<did>
-- option <the chosen answer>
-- code <item> <code tip the page showed>
-- brief <item> <brief inputs hash the page showed>
----
+{"item": 63, "did": "<decision id>", "question": "<question>", "option": "<the chosen answer>",
+ "code": "<code tip the page showed>" or null, "brief": "<brief inputs hash the page showed>" or null}
+```
+
+The text pasted into the session is built from it, never stored:
+
+```
 #<item>: <question>
 My decision: <answer>. (d<N>, approved by me)
 ```
 
-- Drafts come only from saving on a page; saving is the approval. Files
-  without a `decision` fact (old companion drafts) are ignored.
+- Drafts come only from saving on a page; saving is the approval. Older
+  `d<N>.md` drafts (a header of fact lines) are not read: only three existed,
+  in two old sessions (A.11).
 - One draft per undelivered decision (`item:did`); saving again rewrites it.
   Undo renames it to `d<N>.withdrawn`, so a number is never reused.
 - A draft is **delivered** when a human-typed message in the main transcript
   contains `(d<N>,`. Delivered drafts are never stale and never copied again.
-- A draft is **stale** when any fact no longer holds: the item's code tip
-  differs or the brief's `inputs` differs.
-- The text format is a contract with `delivered_at` and with the human's
+- A draft is **stale** when what it recorded no longer holds: the item's code
+  tip differs ("The code changed.") or the brief's `inputs` differs ("New
+  evidence."). The page shows these reasons as the server gives them.
+- The pasted text is a contract with `delivered_at` and with the human's
   session; it does not change without a migration.
+- `/send` answers every Copy with the draft's state now, so the page repaints
+  from it: out of date, already sent, or gone.
 
 ### 4.5 Companion state
 
 | File | Content |
 |---|---|
 | `$STATE/companions` | session ids of companion forks, one per line, so a fork is never taken for the session |
-| `$STATE/briefs/<s>/companion-settings.json` | the companion's permission profile, one per session, rewritten on each question |
+| `$STATE/briefs/<s>/companion-settings.json` | the companion's permission profile, one per session, rewritten on each launch |
 | `$STATE/scratch/<s>/` | files for the config's compare action, nothing else |
-| in memory (`companion.Companion`) | the fork's session id for this server run; one question at a time |
+| in memory (`serve.Server`) | the fork's session id for this server run; one question at a time |
 
 ### 4.6 Pages
 
-`$STATE/review/<s>/index.html` and `i<N>.html`, built by `hitl serve`,
+`$STATE/review/<s>/index.html` and `i<N>.html`,
 beside `hitl.css`, `hitl.js` and `tips.json` (the code tips `/drafts` reads).
 Disposable: rebuilt from items, briefs and git, each file written atomically;
 a build deletes only pages of items that are gone. They carry, as data
@@ -209,7 +224,7 @@ attributes, exactly what an action needs: `data-item`, `data-did`,
 
 ### 5.1 Claude Code transcripts (undocumented format; read only)
 
-All knowledge of the format lives in `hitl/core.nim`'s transcript section. Assumed:
+All knowledge of the format lives in `session.nim`. Assumed:
 - Sessions: `$CLAUDE_CONFIG_DIR/projects/<project>/<sid>.jsonl`, the project
   name being the cwd with non-alphanumerics as `-`.
 - Subagents: `<project>/<sid>/subagents/agent-<id>.jsonl` with an optional
@@ -228,27 +243,26 @@ with it.
 
 ### 5.2 git (read only)
 
-- Every call goes through `core.git()`: `git --no-optional-locks -C <dir>`,
-  with a timeout, returning `None` on failure.
-- Only reading subcommands: `rev-parse`, `rev-list`, `reflog show`, `log`,
-  `diff`, `merge-base --is-ancestor`, `status --porcelain`, `branch
-  --show-current`.
+- Every call goes through `session.git()`: `git --no-optional-locks -C <dir>`,
+  with a timeout, returning none on failure. Every child
+  process, git and `claude`, goes through `session.run()`.
+- Only reading subcommands: `rev-parse`, `rev-list`, `log` (also `-g --all`),
+  `diff`, `merge-base --is-ancestor`, `worktree list`.
 
 ### 5.3 `claude` CLI
 
 | Use | Call |
 |---|---|
 | Split, brief | `claude -p --model <m> --output-format json --tools Read,Grep,Glob --strict-mcp-config --json-schema <schema>`, prompt on stdin, no session persistence, cwd = the repository; the answer is `structured_output` |
-| Companion | `claude -p --resume <sid> --fork-session --session-id <new> --settings <profile> --strict-mcp-config --append-system-prompt <companion.md> --add-dir ... --output-format json`, prompt on stdin, cwd = the session's; later questions `--resume <fork id>` |
+| Companion | `claude -p --resume <sid> --fork-session --session-id <new> --settings <profile> --strict-mcp-config --append-system-prompt <companion.md> --add-dir ...` in the session's cwd; later questions `--resume <fork id>` |
 
 Model output is data: parsed against a fixed shape, never trusted for
 numbering, identity or paths.
 
 ### 5.4 Browser
 
-- File mode (the built pages opened as files): pages work without a server
-  and are read only; the scripts detect the missing `window.HITL` and leave
-  every control inert.
+- File mode (the pages `serve` built, opened as files): no server, read only;
+  the scripts detect the missing `window.HITL` and leave every control inert.
 - Served mode (`hitl serve`): the same pages plus `/config.js`, which sets
   `window.HITL.token`.
 - Clipboard: `navigator.clipboard` in the page; when it fails, the text is
@@ -287,33 +301,66 @@ be denied or left out of the available tools, not merely left unallowed.
 
 ### 6.2 Companion permission profile
 
+- `claude --restricted`: the user's, project's and local settings files are
+  ignored (managed settings and `--settings` still apply), and the file tools
+  reach only the working directories: the session's cwd, plus `--add-dir` for
+  the transcripts, the briefs, its scratch folder and every worktree of the
+  session's repository. Tools: Read, Grep, Glob, Bash, Edit, Write, Agent
+  (`--tools`); no MCP servers (`--strict-mcp-config`).
 - Allow: Read, Grep, Glob; `git --no-optional-locks` with `log`, `show`,
-  `diff`, `status`, `rev-parse`, `blame`, `grep`, `ls-files`, `reflog show`;
-  Edit only in its scratch folder; the config's compare commands, with files
-  in scratch only. No MCP servers (`--strict-mcp-config`).
-- Deny: git writes with and without `--no-optional-locks`, `git -C` in both
-  spellings, `gh` writes, `hitl brief` and `hitl serve` (`hitl` is the binary's
-  absolute path) with and without `--session`,
-  `flock`, `tmux`, `rm`, `mv`, `kill`, `pkill`, SendMessage, TaskStop,
-  NotebookEdit, Edit in the parent of the session's cwd.
-- Anything else is refused (`-p` asks no one).
+  `diff`, `status`, `rev-parse`, `blame`, `grep`, `ls-files`, `reflog show`,
+  and the same without the flag except `status` (it may lock the index);
+  `cat`, `head`, `tail`, `ls`, `wc`, `grep`, `diff` (not `rg`: `--pre` runs a
+  command); Edit and Write only in its scratch folder (`Edit(//<abs path>/**)`:
+  `//` marks an absolute path; a single `/` is relative to the settings file);
+  the config's compare commands, with files in scratch only.
+- Deny, as wildcard rules: options of allowed reads that write or run a
+  command: `--output`, `git grep -O` / `--open-files-in-pager`, `--ext-diff`,
+  `--textconv`.
+- Everything else is refused: `-p` has nobody to ask. Claude Code itself also
+  refuses output redirects and the writing part of a compound command. The
+  chat lists what was refused under each answer (`permission_denials`).
+- Checked against the real CLI on 2026-11-11 in a throwaway repository whose
+  project settings allowed `touch`, `git commit`, Edit and Write: every
+  allowed read ran, in the repository, a worktree and the transcripts; a file
+  outside the working directories, `touch`, commits, `git -C`, `--output`,
+  redirects and writes outside scratch were refused and left no file; a write
+  and an edit in scratch ran; the Agent tool was there.
 - It may start a fresh read-only reviewer for a second opinion; that reviewer
   inherits the same profile.
 
 ### 6.3 Server
 
-- Binds 127.0.0.1 only, on a fixed port (default 8765), and answers only
-  requests whose Host is `127.0.0.1:<port>` or `localhost:<port>` (DNS
-  rebinding).
+- **Listens on every interface, not on 127.0.0.1 only**, on a fixed port
+  (default 8765). The Python binds 127.0.0.1; std/httpserver's `listenHttp`
+  takes no address (bug-reports/113), and the user keeps this as a recorded
+  gap. So the server is reachable from the network: the Host check below
+  stops browsers, not a client on the network, which can send its own Host,
+  read the token from `/config.js`, read the pages and post decisions or
+  questions, which run `claude` as the user. Do not run `hitl serve` on a
+  network you do not trust until bug 113 is fixed; then bind 127.0.0.1 and
+  drop this item.
+- Answers only requests whose Host is `127.0.0.1:<port>` or
+  `localhost:<port>` (DNS rebinding).
 - A random token per run, served only in `/config.js`, required in the
-  `X-HITL-Token` header of every POST.
+  `X-HITL-Token` header of every POST. `/config.js` is refused when the
+  browser marks the request as coming from another site (`Sec-Fetch-Site`
+  other than `same-origin` or `none`): another site's `<script src>` passes
+  the Host check and would otherwise run the file in its own page and read
+  the token. Without the header (old browsers, curl) it is served; the
+  Origin check below still refuses those POSTs.
+- The companion's working directory and profile are set up once, at server
+  start; a session without a working directory stops the server there.
 - POSTs are refused unless Origin is empty or the server's own origin.
   No CORS, no OPTIONS handler, so cross-site pages cannot send the header.
 - Five POST actions only: `/drafts`, `/decide`, `/send`, `/withdraw`, `/ask`.
   Every GET is a built file (pages, `hitl.css`, `hitl.js`, `tips.json`) or
   `/config.js`.
-- Errors return JSON with a short message; the server never crashes on a bad
-  request.
+- Errors return JSON with a short message; a bad request never stops the
+  server. A refusal or a missing file has no body (std/httpserver has no
+  error pages). A client that goes away before its answer is written does
+  stop it (SIGPIPE, bug-reports/114), and a port in use stops `hitl serve`
+  with an assertion (bug-reports/109).
 
 ## 7. Invariants
 
@@ -328,9 +375,9 @@ and a migration.
    follows its question. Rewriting briefs or adding material changes neither.
 4. **Numbers come from code.** The model proposes groupings and titles; code
    assigns numbers, validates handles and drops anything else.
-5. **Approval is re-checked before use.** No draft text leaves hitl (the page's
-   Copy) unless, at that moment, it is not delivered and every recorded fact
-   still holds.
+5. **Approval is re-checked before use.** No draft text leaves hitl (page
+   Copy) unless, at that moment, it is not delivered and every
+   recorded fact still holds. `drafts.check` is the one check.
 6. **Facts are the ones the human saw.** A draft records the code tip and the
    brief the human was looking at when they saved.
 7. **Delivered is detected, not declared.** Only the session transcript says
@@ -364,7 +411,7 @@ and a migration.
 
 | What | Budget |
 |---|---|
-| Nimony, excluding tests and page CSS/JS | 1,800 lines; each module at most 700 |
+| Nimony, excluding tests and page CSS/JS | follows the Python's module for module (about 3,350 lines now); a module grows only with its Python module |
 | Page CSS and JS | 700 lines together |
 | Config keys | the current 4 (`spec`, `reader`, `users`, `compare`) |
 | Model runs | one split per `hitl brief`, one brief per changed item; none on page view |
@@ -377,8 +424,9 @@ Prefer deleting code to adding it.
 
 A key is added only when the project, not hitl, holds the answer and no
 generic default works. Then:
-1. Add it to `DEFAULTS` with a default that leaves behaviour unchanged, and
-   validate it in `load_config` (unknown keys stay refused).
+1. Add it to the Python first, then here: to `defaults()` with a default that
+   leaves behaviour unchanged, and validate it in `config.load` (unknown keys
+   stay refused).
 2. Read it in exactly one place. It changes data (text in a prompt, a label,
    an allow list), never control flow across modules.
 3. Document it in the README and in `examples/`.
@@ -386,82 +434,13 @@ generic default works. Then:
 
 ### 8.4 Other rules
 
-- Transcript-format knowledge stays in `hitl/core.nim`'s transcript section; git
-  goes through `core.git()`.
+- Transcript-format knowledge stays in `session.nim`; git goes through
+  `session.git()`.
+- Behaviour changes are made in the Python first and ported; the two stay
+  byte for byte the same on real sessions where the standard library allows.
+- What the standard library cannot do yet is a GAP comment and a row in
+  PORTING.md, never a workaround.
 - State paths are computed in one helper, not rebuilt inline.
-- New behaviour comes with a test on fixtures and the fake model; tests never
-  touch the real state directory or `~/.claude`.
+- New behaviour comes with a test on fixtures and the fake `claude`; tests never
+  touch the real state directory or clipboard.
 - Commit messages say what changed for the user.
-
----
----
-
-# Review findings (not part of the locked spec)
-
-These refer to the Python sources of hitl, which this repository ports.
-
-## A. Issues
-
-Ranked by severity. File and line are on branch `general` at `e62755d`.
-
-| # | Sev. | Where | Issue | Verdict |
-|---|---|---|---|---|
-| 1 | High | `hitl.py:392`, `386-390` | The companion is allowed `Bash(git --no-optional-locks:*)`, which matches `git --no-optional-locks commit/push/reset/checkout`. The deny list only matches `git push ...` without the flag. The read-only guarantee is broken for the companion. | Fix: allow only reading subcommands (`git --no-optional-locks log:*`, `show`, `diff`, `status`, `rev-parse`, `blame`, `grep`, `ls-files`, `reflog`). |
-| 2 | High | `hitl.py:393`, `review.py:1305-1306` | The companion may run any `python3 hitl.py ...`: `review --out <any dir>` deletes every `*.html` in that dir; `brief --force` spends model runs and makes drafts stale; `companion` execs a nested session. | Fix: allow `status`, `show`, `directions` only; `build` deletes only `index.html` and `i<N>.html`. |
-| 3 | Med-high | `brief.py:143-145` | Split and brief runs use `--allowedTools`/`--disallowedTools`; NotebookEdit, WebFetch, Agent and the user's MCP tools stay available if the user's settings allow them. | Fix: `--tools Read,Grep,Glob --strict-mcp-config` (both in the installed CLI). |
-| 4 | Medium | `hitl.py:472-475` | `decide` records the brief hash at save time, not the brief the page showed. Item pages are rebuilt only when the index is fetched (`serve.py:390-391`), so a brief rewritten in between is silently approved. Breaks invariant 6. | Fix: put the brief hash on the page (`data-brief`) and record that, as `data-ref` already does. |
-| 5 | Medium | `serve.py:431-441` vs `hitl.py:560` | The page's `/send` skips the `status: approved` check that the CLI makes, so an unapproved companion draft is copyable from the strip. Two re-checks that differ. | Fix: one re-check function for both (or simplification 3). |
-| 6 | Medium | `review.py:963-965`, `companion.md:519-527` | Companion drafts have no `decision`/`option` facts: the strip shows an empty answer and links to `i.html`. | Fix with simplification 3. |
-| 7 | Medium | `serve.py:389-405` | No Host check: a DNS-rebinding page can read every built page (code, briefs) and `/config.js`. POSTs are still stopped by the Origin check. | Fix: refuse any request whose Host is not `127.0.0.1:<port>` or `localhost:<port>` (2 lines). |
-| 8 | Medium | `review.py:85-107` | **Commits leak from a reused worktree** (heard): any reflog commit in a worktree the session committed in, within the session's whole time span, is taken, including the human's or another session's. Long sessions span days. | Not acceptable for a shared main checkout. Fix: keep a reflog entry only within ~120 s after one of this session's own committing Bash calls in that repository (~8 lines). |
-| 9 | Medium | `brief.py:235-236` | **Material the split leaves out is never offered again** (heard): every offered key is marked seen, placed or not. | Acceptable for turns. Not for agents and commits: mark those seen only when placed. |
-| 10 | Medium | `hitl.py:398-399` | One `companion-settings.json` for all sessions: two `serve` runs overwrite each other's profile (drafts path) between write and launch. | Fix: one file per session under `$STATE/briefs/<s>/` or scratch. |
-| 11 | Low-med | `$STATE/directions/26c3c765/`, `bef67b4d/` | **Old drafts point at old report numbers** (heard): `decision 87:...` from the bug-report era; the strip links to missing or wrong items and shows them out of date forever. | Acceptable as a one-time cleanup: the user moves those two folders aside by hand. Rule kept: identity changes need a migration. |
-| 12 | Low | `hitl.py:513-515`, `review.py:179-181` | **The 1.4 s `/drafts` call** (heard): every page load runs a full `collect` (all reflogs, `rev-list --all`) to get code tips. | Acceptable for `/send`, which must be live; not for page load. Fix: write the tips at build, `/drafts` reads them, `/send` recomputes. |
-| 13 | Low | `review.py:140` | **The newest attempt wins over an older kept one** (heard): an item's current code is its newest commit's line, even if an older commit on another branch is the one kept. | Acceptable: the brief names earlier attempts; the human can ask the companion. Document only. |
-| 14 | Low | `brief.py:47-48` | **The 5 housekeeping items in the Nimony test run** (heard): the split made items of status checks despite the rule. Cost: 5 brief runs and 5 cards in "Nothing open". | Acceptable; addressed by simplification 5. |
-| 15 | Low | `hitl.py:465-466`, `485-488` | Draft numbers are reused after Undo of the highest one; a copied-then-undone text pasted later marks the new draft delivered. | Fix: number from a counter that never goes down, or keep withdrawn drafts as `.withdrawn`. |
-| 16 | Low | `hitl.py:467`, `485-488`, `serve.py:429` | `did` and `id` from the request are not validated: a newline in `did` injects fact lines; `id` with `../` deletes any `.md`. Token-gated, so local only. | Fix: `did` must match `\w+`, `id` must match `d\d+`. |
-| 17 | Low | `hitl.py:532` vs `review.py:43` | Two definitions of a human message; `delivered_at` ignores `promptSource == "typed"`. A pasted draft could go undetected and be copied twice. | Fix: one `is_human` in `hitl.py`. |
-| 18 | Low | `review.py:1175`, `1233-1237` | The lane "Needs another review" holds only spec conflicts and missing briefs; items with `needs_review` or `bug_risks` go to "Nothing open". The other two counts are computed and unused. | Design question for `DESIGN.md` (flagged, not changed). |
-| 19 | Low | `review.py:1305-1314` | `build` deletes all pages, then writes them; a request during a rebuild gets 404. | Fix: write each page to a temp file and rename. |
-| 20 | Low | `brief.py:152-156` | JSON is pulled out of prose with a greedy regex. | Fixed by `--json-schema` (simplification 2). |
-
-## B. Simplifications
-
-Each keeps the behaviour the user relies on, the re-check before copying and
-the read-only model. Line counts are estimates, including tests.
-
-| # | Cut | Lines saved | Risk |
-|---|---|---|---|
-| 1 | Drop Copy all, the browser-remembered unsaved choice (`keep/forget/recall/tidy/known`, `data-dids`) and the card countdown (`count`, `data-total`). Needs `DESIGN.md` edits (answers 2, 9). | ~85 (+20 in DESIGN.md) | Low. Each decision is still copied in one click. |
-| 1a | No cap of 3 and no `more` count (decided by the user): the brief lists every entry that meets the bar; drop `more` from the schema, the prompt rule, `parse`, `LIMIT`, `PER_SECTION`, the cache format, `more_of`, `MORE_Q` and the "N more not shown / Ask about them" note. The card shows the exact decision count. `DESIGN.md` answer 1, 5.6 and 6.2 follow. | ~30 (+15 in DESIGN.md) | Low. Long sections get longer; how the page presents them is open in `DESIGN.md` (below). |
-| 2 | `--json-schema` for the split and the brief, and the brief returns the recommended option's index plus its reason: delete `json_object`, the defensive filtering in `parse`, `suggested`, `_words`, `_STOP`. | ~45 | Low. Every brief is rewritten once (prompt change). |
-| 3 | One draft path: drafts come only from saving on a page; saving is the approval. Drop `status:`, the `ref`/`since` facts, the companion's drafting section and its file format; keep `hitl directions` for listing and sending. Fixes issues 5 and 6. | ~70 | Medium: free-form directions drafted by the companion go; the human types those, or uses "Type your answer" on a decision. **User decides.** |
-| 4 | Move `CSS`+`CHAT_CSS` to `static/hitl.css` and `CHAT_JS`+`DECIDE_JS` to `static/hitl.js`, copied beside the pages at build. Drops the `__ICONS__` splice; `review.py` goes from 1,315 to ~640 lines; each page ~45 KB smaller; `node --check` runs on a file. | ~15 net | Low. File mode needs the two files beside the pages (build copies them). |
-| 5 | Leave housekeeping out of the split: drop the "leave out housekeeping" rule; the split must place every agent and commit; turns may stay unplaced. Fixes issue 9. | ~5 | Low: a few more "Nothing open" cards per session. |
-| 6 | Small dedupes: one `is_human`/`text_of` in `hitl.py`; one state-path helper (drafts, briefs and scratch paths are built in 4 places); `webbrowser.open` instead of `gio` twice; `collect` reads the transcript twice; unused `KINDS` counts; dead `note` parameter (the page always sends `''`); `serve.review_brief_path`. | ~35 | Low. |
-| 7 | Cut `lock_holders` (`lslocks`) from `status`: it serves one workflow's heavy-job lock. | ~22 | Low-medium: Nimony sweeps lose that line. **User decides.** |
-| 8 | Config as JSON (settled): replace `tomllib`, `.hitl.toml` and `examples/nimony.hitl.toml` with `json`, `.hitl.json` and `examples/nimony.hitl.json`; the key comments move to the README. | ~0 | Low. Existing `.hitl.toml` files must be converted by hand. |
-| 9 | Precompute code tips at build for `/drafts`; `/send` stays live (issue 12). | adds ~6 | Low. |
-
-Considered and not recommended: replacing the chat's markdown renderer
-(`review.py:186-286`, ~95 lines) with plain text. `DESIGN.md` 4.3 asks for
-markdown, and companion answers carry tables and code.
-
-Top five: 1 with 1a, 2, 3, 6, 4, saving about 280 lines (about 11% of the code).
-
-## C. Decided by the user (2026-11-09)
-
-1. Simplification 3: drop companion-drafted directions; drafts are made only
-   on the page, and saving is the approval.
-2. Simplification 7: drop the lock line in `status`.
-3. Issue 8: filter commits by the session's own git calls.
-4. Issue 18: "Needs another review" also takes items with `needs_review`
-   entries (DESIGN.md changes accordingly).
-5. Issue 3 and 6.2: the companion runs with `--strict-mcp-config` (no MCP tools).
-6. The budgets in 8.2 stand: 1,800 Python lines, 700 CSS/JS lines, 4 config keys.
-
-Settled for `DESIGN.md`: an item page shows every entry of every section, most
-important first, with no fold and no "Show more"; a section's count is its
-exact total.

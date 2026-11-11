@@ -96,6 +96,7 @@ block other_hosts_are_refused:  # ServerTests.test_other_hosts_are_refused
 
 block another_site_cannot_read_the_token:  # ServerTests.test_another_site_cannot_read_the_token
   proc get(site: openArray[string]): (int, bool) =
+    ## /config.js with these headers: the status, and whether the token came.
     let r = request("GET", "/config.js", headers = site)
     result = (r.status, runToken in r.body)
   assert get(["Sec-Fetch-Site: cross-site"]) == (403, false), "<script src> elsewhere"
@@ -131,30 +132,30 @@ block copy_makes_the_same_checks_as_send:  # ServerTests.test_copy_makes_the_sam
   except:
     quit "cannot write the brief"
   # the page showed brief h1; it was rewritten before Save: the saved decision is out of date
-  let decide = "{\"item\": 7, \"did\": " & str(did) & ", \"question\": " & str(q) &
+  let decide = "{\"item\": 7, \"did\": " & quote(did) & ", \"question\": " & quote(q) &
                ", \"option\": \"Yes\", \"brief\": "
   var r = post("/decide", decide & "\"h1\"}")
   assert r.status == 200, "saved: " & r.body
   let id = idOf(r.body)
-  r = post("/send", "{\"id\": " & str(id) & "}")
+  r = post("/send", "{\"id\": " & quote(id) & "}")
   assert r.status == 409, "out of date: " & r.body
   assert "\"stale\": [\"New evidence.\"]" in r.body, "the page repaints from it: " & r.body
   discard post("/decide", decide & "\"h2\"}")
-  r = post("/send", "{\"id\": " & str(id) & "}")
+  r = post("/send", "{\"id\": " & quote(id) & "}")
   var sent = parseJson(r.body)
   assert r.status == 200 and sent{"text"}.getStr.splitLines[0] == "#7: " & q, "copied: " & r.body
   writeText(spath, before & user(sent{"text"}.getStr, "2026-11-09T09:00:00Z") & "\n")  # pasted
-  r = post("/send", "{\"id\": " & str(id) & "}")
+  r = post("/send", "{\"id\": " & quote(id) & "}")
   assert r.status == 409 and "\"delivered\": \"2026-11-09T09:00" in r.body,
     "already sent: " & r.body
   r = post("/send", "{\"id\": \"d99\"}")
   assert r.status == 404 and r.body == "{\"draft\": null, \"error\": \"no such draft\"}", r.body
   # forged ids are refused, not written or deleted
-  assert post("/decide", "{\"item\": 7, \"did\": \"x\\n- code 7 y\", \"question\": " & str(q) &
+  assert post("/decide", "{\"item\": 7, \"did\": \"x\\n- code 7 y\", \"question\": " & quote(q) &
               ", \"option\": \"Yes\"}").status == 500, "a forged decision id"
   assert post("/withdraw", "{\"id\": \"../../x\"}").status == 500, "a forged draft id"
-  assert post("/withdraw", "{\"id\": " & str(id) & "}").status == 200, "Undo"
-  r = post("/decide", "{\"item\": 7, \"did\": \"other\", \"question\": " & str(q) &
+  assert post("/withdraw", "{\"id\": " & quote(id) & "}").status == 200, "Undo"
+  r = post("/decide", "{\"item\": 7, \"did\": \"other\", \"question\": " & quote(q) &
            ", \"option\": \"No\"}")
   assert idOf(r.body) != id, "Undo never frees a number"
   writeText(spath, before)

@@ -15,9 +15,10 @@
 
 import std/[syncio, strutils, os, envvars, cmdline, json]
 import std/posix/posix
-import ../hitl/brief
+import ../hitl/[state, brief]
 
 type PlanItem = object
+  ## One item of the plan's split.
   id: int
   title: string
   handles: seq[string]
@@ -27,20 +28,13 @@ proc wanted(h: string; list: seq[string]): bool =
   h in list or (h[0] & "*") in list
 
 proc strings(n: JsonNode): seq[string] =
+  ## The strings of a JSON array; none for anything else.
   result = @[]
   if n.kind == JArray:
     for x in items(n): result.add x.getStr
 
-proc quote(s: string): string =
-  var t = toJson(s)
-  result = $t
-
-proc quote(list: seq[string]): string =
-  var parts: seq[string] = @[]
-  for s in list: parts.add quote(s)
-  result = "[" & parts.join(", ") & "]"
-
 proc main() =
+  ## Records the call, then answers it from the plan.
   let prompt = try: readAll(stdin) except: ""
   var argv: seq[string] = @[]
   for i in 1..paramCount(): argv.add paramStr(i)

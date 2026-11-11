@@ -1,7 +1,7 @@
 ## hitl's own files: where each session's state lives, how files are written,
 ## the companion forks, and the few text helpers every layer shares.
 
-import std/[syncio, strutils, os, paths, dirs, files, envvars, json, unicode]
+import std/[syncio, strutils, os, paths, dirs, files, envvars, json, unicode, rex]
 import std/crypto/sysrand
 
 proc outDir*(): string =
@@ -39,19 +39,28 @@ proc collapse*(text: string): string =
     if w.len > 0: words.add w
   result = words.join(" ")
 
-proc quote*(s: string): string =
-  ## s as a JSON string.
+proc quote*[T](value: T): string =
+  ## value (a string, a number, a seq or an object of them) as JSON text, on
+  ## one line: std/json's `toJson`, then `$`.
   # GAP: control characters other than \b \f \n \r \t are written raw, which
   # is not JSON, because std/json's `$` does not escape them
   # (bug-reports/104-json-dollar-control-chars-unescaped).
-  var t = toJson(s)
+  var t = toJson(value)
   result = $t
 
-proc quote*(list: seq[string]): string =
-  ## list as a JSON array of strings.
-  var parts: seq[string] = @[]
-  for s in list: parts.add quote(s)
-  result = "[" & parts.join(", ") & "]"
+proc subGroup*(s: string; r: Regex; before = "", after = ""): string =
+  ## s with every match of r replaced by its first group between before and
+  ## after (Python's re.sub(r, before + r"\1" + after, s)); std/rex's
+  ## `replace` takes no group.
+  result = ""
+  var caps: seq[Capture] = @[]
+  var i = 0
+  var (a, b) = findBounds(s, r, caps, 0)
+  while a >= 0:
+    result.add s.substr(i, a - 1) & before & capture(s, caps, 0) & after
+    i = b + 1
+    (a, b) = findBounds(s, r, caps, i)
+  result.add s.substr(i)
 
 # ---------------------------------------------------------------- companions
 

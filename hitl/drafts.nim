@@ -48,7 +48,7 @@ proc orNull(s: string): string =
 
 # -------------------------------------------------------------------- drafts
 
-proc readDraft*(p: string): Result[Draft, string] =
+proc readDraft(p: string): Result[Draft, string] =
   ## The draft in file p, as `decide` wrote it: {item, did, question, option,
   ## code, brief}, with its id, its key and the text that is pasted into the
   ## session. The error says why the file is no draft.
@@ -101,7 +101,7 @@ proc allDrafts*(sid: string): Result[seq[Draft], string] =
     drafts.add dr.get(Draft())
   result = ok[seq[Draft], string](drafts)
 
-proc deliveredAt*(dr: Draft; recs: seq[Rec]): Opt[string] =
+proc deliveredAt(dr: Draft; recs: seq[Rec]): Opt[string] =
   ## When the human pasted the draft into the session: the time of the first
   ## message they typed that holds "(d<N>,"; none if they did not.
   # A message with no time counts as not delivered, as in the Python, where
@@ -143,11 +143,13 @@ proc decide*(sid, spath: string; item: int; did, question, option: string; code 
     return err[Draft, string]("cannot read " & d)
   let name = if mine.len > 0: mine else: "d" & $(used + 1)
   let p = d & "/" & name & ".json"
+  # Joined from its members, not std/json's toJson, which has no null: code
+  # and brief are null when the page showed none, as the Python writes them.
   # GAP: written on one line, not indented as the Python does (both are JSON),
   # because std/json has no pretty printer.
-  let record = "{\"item\": " & $item & ", \"did\": " & quote(did) & ", \"question\": " &
-    quote(collapse(question)) & ", \"option\": " & quote(collapse(option)) & ", \"code\": " &
-    orNull(code) & ", \"brief\": " & orNull(brief) & "}"
+  let record = "{\"item\":" & $item & ",\"did\":" & quote(did) & ",\"question\":" &
+    quote(collapse(question)) & ",\"option\":" & quote(collapse(option)) & ",\"code\":" &
+    orNull(code) & ",\"brief\":" & orNull(brief) & "}"
   try:
     writeAtomic(p, record)
   except:
@@ -170,7 +172,7 @@ proc withdraw*(sid, name: string): Result[bool, string] =
 
 # ------------------------------------------------------------------- checks
 
-proc staleFacts*(dr: Draft; sid: string; tips: Table[int, string]): seq[string] =
+proc staleFacts(dr: Draft; sid: string; tips: Table[int, string]): seq[string] =
   ## What changed since the decision was saved, as the page says it: the
   ## item's code (tips: {item: its code tip}) and the evidence of its brief.
   result = @[]

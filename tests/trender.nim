@@ -89,6 +89,7 @@ proc groups(s: string; r: Regex): seq[seq[string]] =
     (a, b) = findBounds(s, r, caps, b + 1)
 
 proc diffed(d: string; limit = 600_000): Diffed =
+  ## The rendered diff, taken apart for the asserts.
   let (h, n) = diff(d, limit)
   let html = $h
   result = Diffed(n: n, paths: @[], stats: @[], rows: @[], html: html)

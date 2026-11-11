@@ -1,5 +1,12 @@
 # hitl: understand and decide on what a Claude Code session did
 
+The Nimony port of [hitl](../hitl): the same program, written in Nimony on
+its standard library alone. It behaves as the Python does, builds the same
+pages and shares its state (`~/.local/state/hitl`), so either can read what
+the other wrote. Where Nimony's standard library cannot match the Python
+yet, the difference is listed under Gaps in [PORTING.md](PORTING.md); the
+ones you may notice are under [Differences from the Python](#differences-from-the-python).
+
 A desk beside any Claude Code session: one agent working alone, or a
 coordinator that launches subagents, on any skill or kind of work (fixing
 bugs, porting a library, building a feature). The agents never load it and do
@@ -12,38 +19,47 @@ no extra work. You still talk to the session as before; hitl gives you:
 - **Saved decisions:** your answers, saved on the pages and re-checked against
   the current facts before you paste them into the session.
 
-hitl runs in the browser. It has two commands: `hitl brief` starts the model
-runs (they cost money, so they run only when you ask), and `hitl serve` builds
-the pages and serves them.
-
 ## Install
 
-Needs a Nimony build (`nimony`), git and the `claude` CLI. kroki and hashi,
-the two Nimony libraries hitl uses, are cloned into `deps/`. Build once, then
-add an alias:
+Needs a Nimony checkout built in `~/Projects/nimony` (or `$NIMONY_SRC`), git
+and the `claude` CLI. hitl uses Nimony's standard library only. Build once,
+then add an alias:
 
 ```sh
 git clone <this repository> ~/Projects/hitl-nimony
 cd ~/Projects/hitl-nimony
-git clone <kroki> deps/kroki && git clone <hashi> deps/hashi
-./build.sh --toolchain     # a private copy of the nimony toolchain (see build.sh)
+./build.sh --toolchain     # a private copy of the Nimony toolchain (see build.sh)
 ./build.sh                 # bin/hitl
 alias hitl=~/Projects/hitl-nimony/bin/hitl
 ```
 
-`hitl` without a command prints its help. Options take their value after `=`.
-`--session=` picks the session: an id prefix or a part of the project's name
-(`--session=nimony`). Without it, hitl takes the newest session of the
-current directory's project, else the newest session.
+`bin/hitl` finds `companion.md` and `static/` in the repository it was built
+in, so leave it there.
+
+`hitl` alone prints its help. An option takes its value after `=` or `:`
+(`--port=8000`), not as the next word. `--session=` picks the session: an id
+prefix or a part of the project's name (`--session=nimony`). Without it,
+hitl takes the newest session of the current directory's project, else the
+newest session.
 
 ```sh
 hitl brief            # sort the session into work items and write their briefs
-hitl brief 3 5        # rewrite only the briefs of items 3 and 5 (when their inputs changed)
+hitl brief 3 5        # only the briefs of items 3 and 5 (rewritten when their inputs changed)
 hitl serve            # pages, decisions and a chat: select text, "Ask about this"
 ```
 
-The pages `hitl serve` builds stay in `~/.local/state/hitl/review/<session>/`;
-opened as plain files they are read only.
+| Option | Meaning |
+|---|---|
+| `--session=SESSION` | session id prefix or project-name substring |
+| `--config=FILE` | config file (default: `.hitl.json` in the session's working directory) |
+| `--model=MODEL` | `brief`: the model (default opus); `serve`: the companion's model |
+| `--force` | `brief`: rewrite even if the inputs did not change |
+| `--jobs=N` | `brief`: how many briefs may be written at once (default 4; see Gaps) |
+| `--port=N` | `serve`: the port (default 8765; 0: one the system picks) |
+
+`serve` builds the pages under `~/.local/state/hitl/review/<session>/`; they
+also open as plain files, read only and without the chat. An error is one
+line, `hitl: <message>`, and exit status 1.
 
 ## How it works with one agent or many
 
@@ -55,11 +71,14 @@ It never changes them. Three kinds of material come out of them:
   and everything the session said until your next message.
 - **Agents:** each subagent's description, task and final report.
 - **Commits:** the commits the session made. They come from git, not from the
-  model: the HEAD reflog of every worktree where the session ran a git command
-  that makes commits, keeping only entries made within 120 seconds after one
-  of those commands (so your own commits and other sessions' commits in a
-  shared checkout stay out) and only commits that a ref still reaches (so
-  commits replaced by an amend or a rebase drop out).
+  model. Every reflog of the repository (each worktree's HEAD and each
+  branch, so a deleted worktree's commits are still found) is matched against
+  the session's git commands that make commits: an entry counts when it was
+  made while one of those commands ran, from its call to its recorded result
+  (so your own commits and other sessions' commits in a shared checkout stay
+  out). The command's transcript says which agent made the commit. Only
+  commits that a ref still reaches count (so commits replaced by an amend or a
+  rebase drop out).
 
 `hitl brief` first asks the model to sort new material into **work items**
 (one bug, one ported module, one feature). A single agent that fixed three
@@ -170,22 +189,32 @@ read-only.
 
 ## The chat and the companion
 
-`hitl serve` runs a small web server on 127.0.0.1 (hashi)
-that serves the pages and passes your questions to the companion: a
-read-only fork of the session (`claude -p --resume <session> --fork-session`,
-in the session's directory), which later questions continue. Select any
-text and choose "Ask about this", or press "Ask" in the corner. The server
-answers only requests addressed to `127.0.0.1:<port>` or `localhost:<port>`;
-each run uses a random token, and it refuses actions without it or from
-another site's page.
+`hitl serve` runs a small web server (std/httpserver) that serves the pages
+and passes your questions to the companion. Select any text and choose "Ask
+about this", or press "Ask" in the corner. The server answers only requests
+addressed to `127.0.0.1:<port>` or `localhost:<port>`; each run uses a random
+token, and it refuses actions without it or from another site's page.
 
-The fork starts with the session's whole conversation; the session itself is
-not changed. Its permission profile lets it read and run reading git
-subcommands (`git --no-optional-locks log`, `show`, `diff`, ...), plus the
-config's compare commands; it can write only to its scratch folder and has no
-MCP tools. Git and `gh` writes (with or without `--no-optional-locks`, and any
-`git -C`), `hitl brief` and `hitl serve`, messaging or stopping agents, and
-`flock` are denied; anything else not listed is refused. It drafts nothing: you save
+**Warning: the server listens on every network interface, not on 127.0.0.1
+only** (the Python version binds 127.0.0.1). std/httpserver's `listenHttp`
+cannot choose the address (bug-reports/113). So while `hitl serve` runs, it
+is reachable from the network: a client there can send its own Host header,
+read the token from `/config.js`, read the pages, and post decisions or
+questions, which run `claude` as you. Do not run `hitl serve` on a network
+you do not trust until bug 113 is fixed.
+
+The chat's first question starts `claude -p --resume <session> --fork-session`
+in the session's directory; later questions continue that fork. The fork
+starts with the session's whole conversation; the session itself is not
+changed. It runs in Claude Code's restricted mode, so your own and the
+project's settings files do not widen what it may do, and its file tools
+reach only the session's directory, its worktrees, the transcripts and the
+briefs. Its permission profile lets it read files, run reading git
+subcommands (`git log`, `show`, `diff`, ...) and `cat`, `head`, `ls`, `grep`
+and the like, plus the config's compare commands; it can write only to its
+scratch folder and has no MCP tools. Options that make a read write or run a
+command (`--output`, `git grep -O`) are denied; everything else is
+refused. Under each answer the chat lists what was refused. It drafts nothing: you save
 decisions on the pages and type everything else. Ask it to explain, to give a
 second opinion (it starts a fresh reviewer that gets the code, not your
 conclusion), or to grill you.
@@ -205,14 +234,40 @@ works and does not interrupt it.
 
 Saving a decision on a page is your approval. The draft records the facts
 you saw: the item's code and its brief as the page showed them. Copy on the
-page checks them again: it refuses when the draft already reached the session
-or when those facts changed since (then save it again on its page). Otherwise
-it copies the text, which ends with `(d3, approved by me)`. You paste it into
-the session between turns.
+page makes the check: it refuses when the
+draft already reached the session or when those facts changed since (then
+save it again on its page). Otherwise it copies the text, which ends with
+`(d3, approved by me)`. You paste it into the session between turns.
+
+## Differences from the Python
+
+All are listed, with their cause, under Gaps in [PORTING.md](PORTING.md).
+The ones you may notice:
+
+- `hitl serve` listens on every interface (see the warning above), a port in
+  use stops it with an assertion instead of a message, and a browser tab that
+  closes before its answer is written stops the whole server (SIGPIPE).
+- `--jobs` is accepted, but the briefs are written one after another.
+- The command line follows std/smartcli: `--port=N`, not `--port N`; with no
+  command, the help comes after `[Error] missing arguments` and hitl exits 1.
+- The JSON files hitl writes (the ledger, the brief cache, drafts) are on one
+  line instead of indented; both versions read them.
+- A refused request or a missing file gets an empty answer instead of an HTML
+  error page.
+- Markdown in briefs and answers: `**a*b**` stays as written, and a
+  non-ASCII space or digit is not taken for one (`std/rex` has no lazy
+  repeats, lookaround or Unicode classes); the "From" line may drop a few
+  more clock times or keep a stray separator.
 
 ## Tests
 
 ```sh
-tests/run                  # every test, debug and release
+tests/run                  # build hitl and every test, run them in debug and release
+tests/run tpages tserve    # only these
 node --check static/hitl.js
 ```
+
+The tests are the Python's `test_hitl.py`, one file per module, on throwaway
+git repositories and transcripts in a temp directory, with a fake `claude`
+(`tests/fakeclaude.nim`) first on PATH. Never run two builds at once: Nimony
+builds in parallel fail.

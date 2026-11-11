@@ -24,7 +24,7 @@ proc stateOf(sid, spath, id: string): DraftState =
 proc writeCache(sid: string; n: int; inputs: string) =
   ## Item n's cached brief, with these inputs and the summary "s".
   try:
-    writeJson(cachePath(sid, n), "{\"inputs\": " & str(inputs) & ", \"brief\": {\"summary\": \"s\"}}")
+    writeJson(cachePath(sid, n), "{\"inputs\": " & quote(inputs) & ", \"brief\": {\"summary\": \"s\"}}")
   except:
     quit "cannot write the brief"
 

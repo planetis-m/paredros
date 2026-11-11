@@ -18,6 +18,13 @@ const
     ## profile's allow list does not name is refused, and the user's and the
     ## project's settings files are ignored.
 
+type
+  # The permission profile as its settings file holds it, for std/json's toJson.
+  Permissions = object
+    allow, deny: seq[string]
+  Settings = object
+    permissions: Permissions
+
 proc setup*(sid, spath: string;
             cfg = none[Config]()): Result[(string, seq[string]), string] =
   ## The companion's working directory and its `claude` arguments: restricted
@@ -71,9 +78,8 @@ proc setup*(sid, spath: string;
   for e in ReadEscapes: denied.add "Bash(" & e & ")"
   # GAP: written on one line, not indented, and non-ASCII text as it is, not
   # \u-escaped as the Python does (both are JSON), because std/json has no
-  # pretty printer.
-  let settings = "{\"permissions\": {\"allow\": " & quote(allowed) & ", \"deny\": " &
-                 quote(denied) & "}}"
+  # pretty printer and no ASCII mode.
+  let settings = quote(Settings(permissions: Permissions(allow: allowed, deny: denied)))
   let sfile = briefs & "/companion-settings.json"   # one per session: two servers never share it
   try:
     writeFile(sfile, settings)
