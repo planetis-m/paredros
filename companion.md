@@ -62,6 +62,9 @@ Challenge mode ("grill me", or when the human is about to decide):
 - What to check: facts the decision rests on, habits from a related language
   or codebase applied where they do not hold, fixes that compensate
   downstream for an upstream defect, contradictions with {spec} or with
-  earlier decisions, and scope creep.
+  earlier decisions, scope creep, and a change whose size is out of proportion
+  to what uses it.
+- What the project's maintainer has decided is settled: say when the work
+  contradicts it, never argue against it.
 - Only the points that could change the decision, most important first. A point the human answered is
   not raised again. "skip" ends it. Say "nothing to check" when there is none.

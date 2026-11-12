@@ -90,8 +90,9 @@ It never changes them. Three kinds of material come out of them:
 things in one session gets three items, each with its own commits; a
 coordinator's fixer, reviewers and later redo of one bug share one item.
 Housekeeping is left out by a rule in that prompt: status checks, filing or
-updating bug reports, editing notes or prompts, combining reviewed branches
-for upstream. The model names the agents and commits it leaves out that way;
+updating bug reports, editing notes, combining reviewed branches for
+upstream. A change to what the agents are told (a prompt, a skill,
+`CLAUDE.md`) is a work item. The model names the agents and commits it leaves out that way;
 any other agent or commit it fails to place is offered again on the next
 run. paredros, not the model, numbers the items and keeps them in a ledger
 (`items.json`): material once sorted stays in its item, and later runs sort

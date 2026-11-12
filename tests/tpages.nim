@@ -72,7 +72,7 @@ block build_shows_brief_code_and_sources:
   assert page.split("class=\"opt\" role=\"radio\" aria-checked=\"false\"").len - 1 == 2
   assert """<li class="own" role="radio" aria-checked="false" aria-label="Your own answer" """ &
     "hidden>" in page
-  assert "<div class=\"n\">Item #1</div>" in page
+  assert "<div class=\"n\">Item #1 · +" in page, "the eyebrow carries the diff's size"
   assert """<nav class="end" aria-label="Next item"><a href="index.html">""" in page,
     "the last item"
   assert """<nav class="top" aria-label="Items"><a href="index.html">""" in page, "the way out only"

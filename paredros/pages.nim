@@ -265,7 +265,8 @@ proc itemPage(r: WorkItem; d: Work; prev, next: Opt[int];
   let body = join([tag("nav", [attr("class", "top"), attr("aria-label", "Items")],
                        tag("a", [attr("href", "index.html")], back, "All items")),
                    tag("header", [attr("class", "head")],
-                       tag("div", [attr("class", "n")], "Item #" & $r.n),
+                       tag("div", [attr("class", "n")], "Item #" & $r.n &
+                           (let sz = size(r.code.diff); if sz.len > 0: " · " & sz else: "")),
                        tag("h1", [], inline(r.title)), summary, acts),
                    join(sections), code,
                    tag("nav", [attr("class", "end"), attr("aria-label", "Next item")], finish)])

@@ -357,7 +357,7 @@ Copy runs `/send`, which re-checks the draft first: it refuses a draft that alre
 ### 5.5 Item header
 
 Anatomy, in order, below the top bar ("‹ All items" only, 5.1):
-- the eyebrow "Item #63" (15/500 `--ink2`);
+- the eyebrow "Item #63", followed by the size of the item's diff when it has one, counted by paredros, not the model: "Item #63 · +75 −12, tests +1004 −0", the tests part only when test files changed (15/500 `--ink2`). The brief's model gets the same line; tests many times the code, or nothing using what the change adds, make "Keep this change?" the item's first open decision;
 - the h1;
 - the summary (lead), shown only when a brief exists;
 - the compare button: a soft button with the bubble icon and the label from the project's config ("Compare with Nim" for Nimony), 24 above it, served only, and only when the config defines one.
@@ -464,7 +464,7 @@ On the last item the row reads only "All items ›" and links to the index.
 | Freshness | Nimony, updated 17:57 |
 | Top bar | All items |
 | Next row tooltip | #69 `<title>` (Alt+Right) |
-| Eyebrow | Item #63 |
+| Eyebrow | Item #63 / Item #63 · +75 −12 / Item #63 · +75 −12, tests +1004 −0 |
 | No brief | No brief yet. Run `paredros brief 63`. |
 | Header button | the config's compare label, e.g. Compare with Nim |
 | Section headings | Decisions for you · Contradicts the spec · Needs another review · Could cause more bugs · Decisions made · The code |

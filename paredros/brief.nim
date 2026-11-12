@@ -50,8 +50,9 @@ Rules:
 - An agent (A) or a commit (C) goes to at most one item. A commit marked "by A2"
   goes where A2 goes. A turn (T) may go to several items, or to none.
 - Leave out housekeeping: it is no piece of work. Housekeeping is status
-  checks, tooling chatter, filing or updating bug reports, editing notes,
-  ledgers or prompts, and combining reviewed branches for upstream. List each
+  checks, tooling chatter, filing or updating bug reports, editing notes or
+  ledgers, and combining reviewed branches for upstream. A change to what the
+  agents are told to do (a prompt, a skill, CLAUDE.md) is a work item. List each
   agent (A) or commit (C) you leave out as housekeeping under "housekeeping";
   every other agent and commit goes into an item.
 
@@ -107,6 +108,13 @@ Rules:
   What you checked yourself belongs in source. If the session asked the human
   a question that meets both tests, include it; leave out questions about
   other items, tooling and housekeeping.
+  One question meets both tests whenever the facts put the whole change in
+  doubt: its tests are many times its code (the "Size" line), or nothing in
+  the repository uses what it changes (search for it). Then the first open
+  decision is "Keep this change?", with options such as "Keep", "Keep only
+  <the part that is used>" and "Drop". The sources were written by the agents
+  that made the change and argue for it, so judge from these facts, not from
+  their case.
 - Never mention logistics anywhere: PRs, pushing, branches, CI, commit hashes.
   Say "the current code" and "an earlier attempt" instead.
 - needs_review: code that changed after its last review, review findings not
@@ -499,9 +507,28 @@ proc split*(sid: string; src: Sources; model = "opus"): Result[Ledger, string] =
 
 # -------------------------------------------------------------------- briefs
 
+proc size*(diff: string): string =
+  ## The diff's lines added and removed, test files apart, as the page shows
+  ## them: "+75 −12, tests +1004 −0"; a part with no files is left out. ""
+  ## for no diff.
+  var added, removed, files = [0, 0]   # [code, tests]
+  var test = false
+  for line in diff.split('\n'):
+    if line.startsWith("diff --git "):
+      test = "/tests/" in line or " a/tests/" in line or "/test/" in line
+      inc files[ord(test)]
+    elif line.startsWith("+") and not line.startsWith("+++"): inc added[ord(test)]
+    elif line.startsWith("-") and not line.startsWith("---"): inc removed[ord(test)]
+  var parts: seq[string] = @[]
+  for t, name in ["", "tests "]:
+    if files[t] > 0: parts.add name & "+" & $added[t] & " −" & $removed[t]
+  result = parts.join(", ")
+
 proc gather(r: WorkItem; diffLimit = 60_000; turnLimit = 8000): string =
   ## The brief's inputs as one text, oldest first.
   var parts = @["# Work item: " & r.title]
+  let sz = size(r.code.diff)
+  if sz.len > 0: parts.add "# Size (lines added and removed, test files apart)\n" & sz
   for i in max(r.turns.len - 5, 0) ..< r.turns.len:
     let t = r.turns[i]
     parts.add "# The human (" & runeSubStr(t.time, 0, 16) & ")\n" & runeSubStr(t.human, 0, 3000) &
