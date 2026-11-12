@@ -110,7 +110,7 @@ Rules:
   other items, tooling and housekeeping.
   One question meets both tests whenever the facts put the whole change in
   doubt: its tests are many times its code (the "Size" line), or nothing in
-  the repository uses what it changes (search for it). Then the first open
+  the repository uses what it adds (search for it). Then the first open
   decision is "Keep this change?", with options such as "Keep", "Keep only
   <the part that is used>" and "Drop". The sources were written by the agents
   that made the change and argue for it, so judge from these facts, not from

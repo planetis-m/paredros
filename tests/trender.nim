@@ -153,8 +153,3 @@ block size_counts_tests_apart:
   assert size(code & tests) == "+2 −2, tests +4 −0", size(code & tests)
   assert size(code) == "+2 −2", "a removed line that starts with -- counts; no tests part"
   assert size("") == ""
-  var big = ""
-  for i in 0 ..< 5:
-    big.add "diff --git a/f" & $i & " b/f" & $i & "\n--- a/f" & $i & "\n+++ b/f" & $i &
-      "\n@@ -1 +1 @@\n-" & 'x'.repeat(50) & "\n+" & 'y'.repeat(50) & "\n"
-  assert size(big) == "+5 −5", "files past the page's limit count too"

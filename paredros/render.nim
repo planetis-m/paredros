@@ -638,9 +638,10 @@ proc diff*(text: string; limit = 600_000): (Html, int) =
 
 proc isTest(path: string): bool =
   ## Is this the path of a test file, by the usual directory and file names?
+  ## Not a spec/ directory: in paredros "spec" is the project's spec.
   let p = "/" & path.toLowerAscii
   let name = p.substr(p.rfind('/') + 1)
-  result = "/test/" in p or "/tests/" in p or "/spec/" in p or "/__tests__/" in p or
+  result = "/test/" in p or "/tests/" in p or "/__tests__/" in p or
     name.startsWith("test_") or "_test." in name or ".test." in name or ".spec." in name
 
 proc size*(text: string): string =
