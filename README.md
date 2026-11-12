@@ -1,27 +1,13 @@
-# paredros: understand and decide on what a Claude Code session did
+# paredros
 
-Written in Nimony, on its standard library alone. What that library cannot
-do yet is listed under [Limitations](#limitations).
-
-A desk beside any Claude Code session: one agent working alone, or a
-coordinator that launches subagents, on any skill or kind of work (fixing
-bugs, building a feature, any other change). The agents never load it and do
-no extra work. You still talk to the session as before; paredros gives you:
-
-- **Review pages:** one page per work item, with a short brief and the code,
-  in the same sections every time, where you choose and save your decisions.
-- **A companion:** a read-only fork of the session that you can question, ask
-  for a second opinion, or ask to challenge you, without interrupting it.
-- **Saved decisions:** your answers, saved on the pages and re-checked against
-  the current facts before you paste them into the session.
+The paredros to your Claude Code session, so you get to be the proedros:
+briefs of each work item, a companion to question, and decisions saved and
+re-checked. Written in Nimony, standard library only
+([Limitations](#limitations)).
 
 ## Install
 
-paredros needs git and the `claude` CLI. A release is one file. On
-linux/amd64 and windows/amd64 it is built with Nimony's native backend and
-needs no runtime libraries; on linux/arm64 and macos/arm64 it is built with
-`nimony c` and links against the system's libc, because Nimony's standard
-library has no libc-free threads there yet.
+Needs git and the `claude` CLI.
 
 Linux and macOS:
 
@@ -35,10 +21,9 @@ Windows (PowerShell):
 irm https://github.com/planetis-m/paredros/releases/latest/download/install.ps1 | iex
 ```
 
-Targets: linux/amd64, linux/arm64, macos/arm64, windows/amd64. The script
-checks the archive against `SHA256SUMS` and installs into `~/.local/bin`
-(Windows: `%LOCALAPPDATA%\Programs\paredros`, added to your PATH).
-`PAREDROS_VERSION` picks a release tag, `PAREDROS_INSTALL_DIR` the folder.
+Targets: linux/amd64, linux/arm64, macos/arm64, windows/amd64. Installs into
+`~/.local/bin` (Windows: `%LOCALAPPDATA%\Programs\paredros`).
+`PAREDROS_VERSION` picks a tag, `PAREDROS_INSTALL_DIR` the folder.
 
 ### From source
 
@@ -50,8 +35,6 @@ cd ~/Projects/paredros
 ./build.sh --toolchain     # a private copy of the Nimony toolchain (see build.sh)
 ./build.sh                 # bin/paredros (BACKEND=n: the native backend)
 ```
-
-`companion.md` and `static/` are built into the binary, so it can live anywhere.
 
 ## Usage
 

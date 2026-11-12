@@ -25,5 +25,6 @@ file=${1:-paredros.nim}; [ $# -gt 0 ] && shift
 name=$(basename "$file" .nim)
 out=${1:-bin/$name}; [ $# -gt 0 ] && [ "$1" != "--" ] && shift
 [ "$1" = "--" ] && shift
+case $out in /*) ;; *) out=$PWD/$out ;; esac   # an absolute OUT stays where it says
 mkdir -p "$(dirname "$out")"
-exec "$TC/bin/nimony" "$BACKEND" --stdcache:"$PWD/$cache/stdcache" --nimcache:"$cache/$name" -o:"$PWD/$out" "$@" "$file"
+exec "$TC/bin/nimony" "$BACKEND" --stdcache:"$PWD/$cache/stdcache" --nimcache:"$cache/$name" -o:"$out" "$@" "$file"
