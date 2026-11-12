@@ -18,7 +18,7 @@
 import std/[syncio, strutils, os, paths, dirs, tables, algorithm, json, opt, result, times,
             sha1, unicode]
 import std/crypto/sha2
-import state, session, config
+import state, session, config, render
 
 type
   Section* {.pure.} = enum
@@ -506,23 +506,6 @@ proc split*(sid: string; src: Sources; model = "opus"): Result[Ledger, string] =
   result = ok[Ledger, string](led)
 
 # -------------------------------------------------------------------- briefs
-
-proc size*(diff: string): string =
-  ## The diff's lines added and removed, test files apart, as the page shows
-  ## them: "+75 −12, tests +1004 −0"; a part with no files is left out. ""
-  ## for no diff.
-  var added, removed, files = [0, 0]   # [code, tests]
-  var test = false
-  for line in diff.split('\n'):
-    if line.startsWith("diff --git "):
-      test = "/tests/" in line or " a/tests/" in line or "/test/" in line
-      inc files[ord(test)]
-    elif line.startsWith("+") and not line.startsWith("+++"): inc added[ord(test)]
-    elif line.startsWith("-") and not line.startsWith("---"): inc removed[ord(test)]
-  var parts: seq[string] = @[]
-  for t, name in ["", "tests "]:
-    if files[t] > 0: parts.add name & "+" & $added[t] & " −" & $removed[t]
-  result = parts.join(", ")
 
 proc gather(r: WorkItem; diffLimit = 60_000; turnLimit = 8000): string =
   ## The brief's inputs as one text, oldest first.

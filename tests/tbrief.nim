@@ -51,13 +51,4 @@ block brief_parse_keeps_known_sections:
   assert b.summary == "s" and b.lists[BugRisks].len == 1 and b.lists[BugRisks][0].text == "t"
   assert b.lists[OpenDecisions].len == 0, "a list left out is empty"
 
-block size_counts_tests_apart:
-  let d = "diff --git a/src/x.nim b/src/x.nim\n--- a/src/x.nim\n+++ b/src/x.nim\n" &
-    "@@ -1,2 +1,2 @@\n-old\n+new\n+more\n" &
-    "diff --git a/tests/t.nim b/tests/t.nim\n--- /dev/null\n+++ b/tests/t.nim\n" &
-    "@@ -0,0 +1,3 @@\n+a\n+b\n+c\n"
-  assert size(d) == "+2 −1, tests +3 −0", size(d)
-  assert size(d.substr(0, d.find("diff --git a/tests") - 1)) == "+2 −1", "no test files, no tests part"
-  assert size("") == ""
-
 tearDown()

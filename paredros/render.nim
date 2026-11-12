@@ -538,14 +538,12 @@ type DiffFile = object
   mode: string          # the old mode, once a line names it
   shown: bool           # within the limit
 
-proc diff*(text: string; limit = 600_000): (Html, int) =
-  ## A unified diff (git diff), one fold per file, every file closed. Returns
-  ## the HTML and the number of files. A file's header runs to its first
+proc readDiff(text: string; limit: int): seq[DiffFile] =
+  ## The files of a unified diff (git diff). A file's header runs to its first
   ## hunk; inside a hunk the counts in `@@ -a,b +c,d @@` say how many lines
   ## follow, and each is read by its first character only, so no content
-  ## line is taken for a header. Renames, mode changes and binary files get a
-  ## note row. Past `limit` characters of diff, the rest of the files are
-  ## counted and named as not shown, never cut mid-file.
+  ## line is taken for a header. Every file's lines are counted; rows are
+  ## built only for the files that start within `limit` characters.
   var files: seq[DiffFile] = @[]
   var f = DiffFile(rows: @[], notes: @[])   # the file being read; in files once the next starts
   var started = false                       # has a file started?
@@ -559,6 +557,8 @@ proc diff*(text: string; limit = 600_000): (Html, int) =
       if c == "\\":
         discard   # "\ No newline at end of file"
       elif not f.shown:   # past the limit: count the lines, build nothing
+        if c == "+": inc f.added
+        elif c == "-": inc f.removed
         if c != "+": dec leftOld
         if c != "-": dec leftNew
       elif c == "+":
@@ -592,7 +592,7 @@ proc diff*(text: string; limit = 600_000): (Html, int) =
       leftOld = if capture(line, caps, 1).len == 0: 1 else: number(capture(line, caps, 1))
       leftNew = if capture(line, caps, 3).len == 0: 1 else: number(capture(line, caps, 3))
       let title = pyStrip(capture(line, caps, 4))
-      f.rows.add noteRow(if title.len > 0: toHtml(title) else: raw("&nbsp;"))
+      if f.shown: f.rows.add noteRow(if title.len > 0: toHtml(title) else: raw("&nbsp;"))
     elif line.startsWith("+++ ") and line.substr(4) != "/dev/null":
       f.path = gitPath(line.substr(4))
     elif line.startsWith("--- ") and line.substr(4) != "/dev/null":
@@ -608,6 +608,14 @@ proc diff*(text: string; limit = 600_000): (Html, int) =
     elif line.startsWith("Binary files "):
       f.notes.add "Binary file"
   if started: files.add f
+  result = files
+
+proc diff*(text: string; limit = 600_000): (Html, int) =
+  ## A unified diff (git diff), one fold per file, every file closed. Returns
+  ## the HTML and the number of files. Renames, mode changes and binary files
+  ## get a note row. Past `limit` characters of diff, the rest of the files
+  ## are counted and named as not shown, never cut mid-file.
+  let files = readDiff(text, limit)
   var folds: seq[Html] = @[]
   var hidden = 0
   for x in files:
@@ -627,3 +635,25 @@ proc diff*(text: string; limit = 600_000): (Html, int) =
                   (if hidden == 1: "file" else: "files") &
                   " not shown: the change is too large to show here.")
   result = (join(folds, "\n"), files.len)
+
+proc isTest(path: string): bool =
+  ## Is this the path of a test file, by the usual directory and file names?
+  let p = "/" & path.toLowerAscii
+  let name = p.substr(p.rfind('/') + 1)
+  result = "/test/" in p or "/tests/" in p or "/spec/" in p or "/__tests__/" in p or
+    name.startsWith("test_") or "_test." in name or ".test." in name or ".spec." in name
+
+proc size*(text: string): string =
+  ## A diff's lines added and removed, test files apart, as the page shows
+  ## them: "+75 −12, tests +1004 −0"; a part with no files is left out. ""
+  ## for no diff.
+  var added, removed, files = [0, 0]   # [code, tests]
+  for f in readDiff(text, -1):
+    let t = ord(isTest(f.path))
+    inc files[t]
+    added[t] += f.added
+    removed[t] += f.removed
+  var parts: seq[string] = @[]
+  for t, name in ["", "tests "]:
+    if files[t] > 0: parts.add name & "+" & $added[t] & " −" & $removed[t]
+  result = parts.join(", ")

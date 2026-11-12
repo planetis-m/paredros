@@ -142,3 +142,19 @@ block a_large_diff_names_what_it_does_not_show:
   let d = diffed(big, limit = 300)
   assert d.n == 5 and d.paths == @["f0", "f1"], "whole files, never cut inside one"
   assert "3 more files not shown" in d.html, "the rest are counted"
+
+block size_counts_tests_apart:
+  let code = "diff --git a/src/x.nim b/src/x.nim\n--- a/src/x.nim\n+++ b/src/x.nim\n" &
+    "@@ -1,2 +1,2 @@\n-old\n--- a comment\n+new\n+more\n"
+  let tests = "diff --git a/tests/t.nim b/tests/t.nim\n--- /dev/null\n+++ b/tests/t.nim\n" &
+    "@@ -0,0 +1,3 @@\n+a\n+b\n+c\n" &
+    "diff --git a/pkg/x_test.go b/pkg/x_test.go\n--- /dev/null\n+++ b/pkg/x_test.go\n" &
+    "@@ -0,0 +1 @@\n+d\n"
+  assert size(code & tests) == "+2 −2, tests +4 −0", size(code & tests)
+  assert size(code) == "+2 −2", "a removed line that starts with -- counts; no tests part"
+  assert size("") == ""
+  var big = ""
+  for i in 0 ..< 5:
+    big.add "diff --git a/f" & $i & " b/f" & $i & "\n--- a/f" & $i & "\n+++ b/f" & $i &
+      "\n@@ -1 +1 @@\n-" & 'x'.repeat(50) & "\n+" & 'y'.repeat(50) & "\n"
+  assert size(big) == "+5 −5", "files past the page's limit count too"
