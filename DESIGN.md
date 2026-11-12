@@ -31,7 +31,7 @@ Two things are replaced: the "Next: #N" link (its job moves to the Next item row
 1. **The decision is the point.** Each decision has one filled button (Save decision), and the next step after it (Copy) is the most visible control on that line. Everything else supports these two.
 2. **Same place, every time.** Fixed lanes, fixed sections, fixed order. An empty one stays where it is and says "none". A control's line keeps its height when its state changes.
 3. **Say it once.** A fact is shown once, in one form: a lane colour, a word or a control, never several at once.
-4. **Depth from tone, not lines.** Page, surface and raised are three tone steps. Hairlines are neutral and appear only between rows of one group. Colour comes only from the lanes, the one blue tint, and the diff.
+4. **Depth from tone, not lines.** Page, surface and the floating material are three tone steps. Hairlines are neutral and appear only between short rows of one group; large blocks, such as decisions, are separate groups with page between them. Colour comes only from the lanes, the one blue tint, and the diff.
 5. **Calm.** Nothing moves unless you did something. No badges, no popping, no gimmicks. There is room around everything.
 
 ---
@@ -46,28 +46,27 @@ Two things are replaced: the "Next: #N" link (its job moves to the Next item row
 |---|---|---|---|
 | `--page` | page | `#f2f2f7` | `#161618` |
 | `--surface` | grouped lists, clear cards, file rows | `#ffffff` | `#262629` |
-| `--raised` | popover, sheet without blur | `#ffffff` | `#2f2f33` |
 | `--fill` | inline code, pressed rows, dimmed button | `#ececf1` | `#353539` |
-| `--hover` | hover on a row | `#f5f5f8` | `#2d2d31` |
+| `--hover` | hover on a row: `--surface` mixed with 4% `--ink` | (derived) | (derived) |
 | `--sep` | hairline between rows | `#dcdce1` | `#3c3c41` |
 | `--edge` | radio circle, field outline | `#8a8a8f` | `#8a8a91` |
 | `--ink` | text | `#1d1d1f` | `#f5f5f7` |
 | `--ink2` | secondary text, "none", stale messages | `#5f5f66` | `#aeaeb5` |
 | `--tint` | links, text controls, icons | `#0066cc` | `#5eaaff` |
-| `--tint-fill` / `--tint-press` | filled button / its hover | `#0066cc` / `#0058b0` | `#1170dc` / `#0b5cb8` |
+| `--tint-fill` | filled button; its hover mixes in 14% black | `#0066cc` | `#1170dc` |
 | `--on-tint` | text on a filled button | `#ffffff` | `#ffffff` |
-| `--tint-soft` / `--tint-soft2` | soft button / its hover, your chat bubble | `#e3eefb` / `#dde9fa` | `#1f3250` / `#273d5f` |
+| `--tint-soft` | soft button, your chat bubble; its hover mixes in 4% `--ink` | `#e3eefb` | `#1f3250` |
 | `--ring` | focus ring | `#2f7de1` | `#5eaaff` |
 | `--sel` | text selection | `#c4dcfa` | `#264a78` |
 | `--material` | floating Ask, chat sheet (blurred) | `rgba(255,255,255,.86)` | `rgba(38,38,41,.88)` |
 
-Lane tints (card fill, card hover, number capsule, capsule and status text):
+Lane tints (card fill, number capsule, capsule and status text). Every hover in the pages is one rule: the fill under it mixed with 4% `--ink`, so it darkens in light mode and lightens in dark mode, and no hover has a colour of its own.
 
 | Lane | Light | Dark |
 |---|---|---|
-| Waiting for your decision | `#e8f0fb` · `#dfe9f8` · `#d2e2f7` · `#0057ad` | `#1f2a3a` · `#243143` · `#2b3e5a` · `#93c5ff` |
-| Needs another review | `#f8f0e3` · `#f3e8d6` · `#efdfc3` · `#864a00` | `#2f281e` · `#362e22` · `#4a3b25` · `#f2c47f` |
-| Nothing open | `--surface` · `--hover` · `#ececf1` · `--ink2` | `--surface` · `--hover` · `#38383d` · `--ink2` |
+| Waiting for your decision | `#e8f0fb` · `#d2e2f7` · `#0057ad` | `#1f2a3a` · `#2b3e5a` · `#93c5ff` |
+| Needs another review | `#f8f0e3` · `#efdfc3` · `#864a00` | `#2f281e` · `#4a3b25` · `#f2c47f` |
+| Nothing open | `--surface` · `--fill` · `--ink2` | `--surface` · `--fill` · `--ink2` |
 
 Diff: added `#e4f4e8`/`#1c6a33` (dark `#1b3123`/`#8fdba3`), removed `#fbe8e6`/`#a5271d` (dark `#3c2323`/`#ff9f96`), hunk `#eff0f5` (dark `#2d2e34`).
 
@@ -78,7 +77,7 @@ States use no colour of their own:
 
 ### 3.2 Type
 
-Stack: `-apple-system, "Adwaita Sans", "Inter", system-ui, sans-serif` (Adwaita Sans is Inter-based, which is the closest to SF on Fedora). Mono: `"Adwaita Mono", "Noto Sans Mono", monospace`. Use tabular figures everywhere.
+Stack: `-apple-system, "Adwaita Sans", "Inter", system-ui, sans-serif` (Adwaita Sans is Inter-based, which is the closest to SF on Fedora). Mono: `"Adwaita Mono", "Noto Sans Mono", monospace`. Tabular figures only where numbers line up: section counts and diff stats. Elsewhere they would widen the hyphen in Inter-based fonts.
 
 | Role | Size/line | Weight | Use |
 |---|---|---|---|
@@ -98,7 +97,7 @@ Use sentence case everywhere. Never use capitals with letter-spacing.
 
 Spacing (px): 4, 8, 12, 16, 20, 24, 32, 40, 52, 56, 72, 96.
 - Page gutter: 24 (phone 16). Item column: 44rem. Index: 72rem. The code breaks out to 76rem.
-- Between sections and lanes: 56 / 52 (phone 48). From a heading to its group: 12–14. An empty section takes 28.
+- Between sections and lanes: 56 (phone 48). From a heading to its group: 12. An empty section takes 28.
 - Inside rows: 18×20 (phone 16). Inside a decision: 24 (phone 20×16).
 
 Radii (px):
@@ -112,10 +111,10 @@ Radii (px):
 Elevation:
 - 0: page
 - 1: surface, separated by tone only, no shadow
-- 2: floating Ask and popover: `--material` with a 24px blur, plus the shadow `0 1px 3px rgba(0,0,0,.06), 0 6px 20px rgba(0,0,0,.07)` (dark: `.3`/`.28`)
-- 3: chat sheet: `--material` with a 32px blur, the same shadow and a 1px `--sep` leading edge
+- 2: floating Ask: `--material` with a 28px blur, plus the shadow `0 1px 3px rgba(0,0,0,.06), 0 6px 20px rgba(0,0,0,.07)` (dark: `.3`/`.28`)
+- 3: chat sheet: `--material` with the same 28px blur, the same shadow and a 1px `--sep` leading edge
 
-Without backdrop blur, levels 2 and 3 use `--raised`.
+Every current browser has backdrop blur; there is no fallback.
 
 ### 3.4 Focus ring and targets
 
@@ -194,22 +193,22 @@ Desktop: one column of 44rem, centred; phone: full width, gutter 16
 | [bubble Compare with Nim]                      |  soft button, served only, when configured
 |                                          (56)  |
 | Decisions for you  3                           |
-| +--------------------------------------------+ |  --surface r14, 24 padding
+| +--------------------------------------------+ |  each decision its own --surface r14, padding 20 20 8 (16 sides on a phone)
 | | Question in 18/500?                        | |
 | | +----------------------------------------+ | |  option group: --page, r12
 | | | (•) Implement First Trial counts…      | | |
 | | |     Suggested                          | | |  "Suggested" trails on wide screens
 | | |     Reordering alone lets declaration… | | |  why line, 15 ink2
-| | |    --------------------------------    | | |
-| | | ( ) Keep fewer-typevars-first ranking  | | |
-| | |    --------------------------------    | | |
+| | | ( ) Keep fewer-typevars-first ranking  | | |  no lines between radios
 | | | ( ) Type your answer                   | | |  last radio, a text field
 | | +----------------------------------------+ | |
 | | [Save decision]                            | |  state line, 44 high, always present
 | | Spec  Second Trial says G[A[T]] is more…   | |
 | | From the agent's report and the spec review| |  footnote ink2
 | | Explain the options   Grill me             | |  text controls
-| |  ----------------------------------------  | |
+| +--------------------------------------------+ |
+|                                          (20)  |  page between decisions, no hairline
+| +--------------------------------------------+ |
 | | (next decision)                            | |
 | +--------------------------------------------+ |
 |   No Spec line means the spec says nothing on  |  footnote, only if one lacks a Spec line
@@ -382,7 +381,7 @@ Rows are split by hairlines that start at the text.
 
 Anatomy, top to bottom:
 1. **Question**: 18/500, the radiogroup's label.
-2. **Option group**: a `--page` inset, r12, `role="radiogroup"`. Each option is a row with a radio circle (16px, 1.5px `--edge` ring; when checked it fills with `--tint-fill` around a 3px `--on-tint` dot). The text is 16 and turns 500 when checked. The suggested option carries "Suggested" (13 `--ink2`) at its trailing edge and its reason as a second line (15 `--ink2`). The last row is **your own answer**: the same circle, with an auto-growing field whose placeholder is "Type your answer". Clicking, focusing or typing in it selects it. Hairlines start at the text (48 from the edge).
+2. **Option group**: a `--page` inset, r12, `role="radiogroup"`. Each option is a row with a radio circle (16px, 1.5px `--edge` ring; when checked it fills with `--tint-fill` around a 3px `--on-tint` dot). The text is 16 and keeps its weight when checked: the filled circle alone says which one, as on macOS. The suggested option carries "Suggested" (13 `--ink2`) at its trailing edge and its reason as a second line (15 `--ink2`). The last row is **your own answer**: the same circle, with an auto-growing field whose placeholder is "Type your answer". Clicking, focusing or typing in it selects it. No hairlines split the options: like a macOS radio group, they are one stack.
 3. **State line**: always present when served, 44 high, so switching states never moves the page.
 4. **Suggested line**: "Suggested" (label 500) followed by the brief's reason. It appears only when the brief recommends none of the options. Otherwise the brief names the recommended option by its index, and that option carries the mark and the reason.
 5. **Spec line**: "Spec" (label 600 `--ink`) followed by the sentence, 15 `--ink2`.

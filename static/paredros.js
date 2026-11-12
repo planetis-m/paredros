@@ -147,14 +147,14 @@
       if(v==='sent') st.appendChild(msg('ok','Sent at '+hhmm(dr.delivered)+'.'));
       else if(v==='choose'||v==='change'){
         st.appendChild(btn('Save decision',function(){commit(li,pending(li))},'commit filled'));
-        if(v==='change') st.appendChild(btn('Cancel',function(){restore(li)},'link'));
+        if(v==='change') st.appendChild(btn('Cancel',function(){restore(li)},'tb'));
       } else if(v==='stale'){
-        st.appendChild(btn('Save again',function(){commit(li,li.dataset.saved)},'link'));
-        st.appendChild(btn('Undo',function(){undo(li)},'link'));
+        st.appendChild(btn('Save again',function(){commit(li,li.dataset.saved)},'tb'));
+        st.appendChild(btn('Undo',function(){undo(li)},'tb'));
       } else {
         st.appendChild(msg('ok','Saved.'));
         st.appendChild(btn('Copy',function(){copy(li)},'soft','copy'));
-        st.appendChild(btn('Undo',function(){undo(li)},'link'));
+        st.appendChild(btn('Undo',function(){undo(li)},'tb'));
       }
     }
     li.classList.toggle('decided',v==='sent');

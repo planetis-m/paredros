@@ -198,7 +198,8 @@ proc itemsHtml*(key: string; entries: seq[Entry]; cfg: Config; item = none[int](
   if key == "open_decisions" and cfg.spec.len > 0 and unsaid:
     # one note instead of "The spec does not say" under every decision
     note = tag("p", [attr("class", "dnote")], "No Spec line means the spec says nothing on it.")
-  result = join([if lis.len > 0: tag("ul", [attr("class", "items")], lis) else: Html(""), note])
+  let cls = if key == "open_decisions": "decs" else: "items"
+  result = join([if lis.len > 0: tag("ul", [attr("class", cls)], lis) else: Html(""), note])
 
 proc sectionHtml*(key, title: string; n: int; inner: Html; label = ""): Html =
   ## A section in its fixed place, with every entry and its exact count
