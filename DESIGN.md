@@ -432,7 +432,7 @@ On the last item the row reads only "All items ›" and links to the index.
 ### 5.12 Ask (served only)
 
 - **Floating Ask**: fixed 24 from the bottom-trailing corner (16 on a phone). The capsule holds the bubble icon and "Ask". It is hidden while the sheet is open, and its tooltip reads "Ctrl+Shift+A asks about selected text".
-- **Popover**: a filled button with the bubble icon and "Ask about this", placed 10 below the selection and kept inside the viewport. It does not appear for selections inside controls, navigation or the strip. Esc dismisses it.
+- **Popover**: a filled button with the bubble icon and "Ask about this", placed 10 below the selection and kept inside the viewport. Only content can be selected (the brief's text, the code, the chat), so it appears for any selection, except in a text field. Esc dismisses it.
 - **Sheet**: the title "Chat" and a close button (`aria-label` "Close chat").
   - The empty log reads "Select text to ask about it, or type a question."
   - Your bubble shows the quote, then your words. For a helper button, your bubble shows that button's label.

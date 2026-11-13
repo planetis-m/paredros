@@ -52,8 +52,11 @@ padding:0 18px;min-height:44px;border:0;border-radius:12px;cursor:pointer;text-d
 .tb{display:inline-flex;align-items:center;font:500 15px/1.3 var(--sans);padding:0 12px;min-height:44px;border:0;border-radius:10px;
 background:none;color:var(--tint);cursor:pointer;text-decoration:none}
 .tb:hover{background:var(--hover)}
-/* controls and navigation are not text: dragging over them selects nothing */
-button,.top a,a.card,.end a{-webkit-user-select:none;user-select:none}
+/* Only content is text: what the brief, the code and the chat say. The interface
+   around it selects nothing, so a selection is always something to ask about. */
+body{-webkit-user-select:none;user-select:none}
+h1,.summary,.text,p.why,.rec,.spec,.src,table.diff td:last-child,#paredros-log :is(.me,.it),textarea{
+-webkit-user-select:text;user-select:text}
 
 /* above the title, only the way out: a back button, chevron plus destination */
 .top{display:flex;margin:0 0 40px;font-size:15px}
@@ -216,8 +219,8 @@ details.file>summary .path{flex:1;overflow-wrap:anywhere}
 .scroll{overflow:auto;border-top:1px solid var(--sep)}
 table.diff{border-collapse:collapse;width:100%;font:13px/1.65 var(--mono)}
 table.diff td{padding:0 12px;white-space:pre;vertical-align:top}
-table.diff td:nth-child(-n+2){width:1%;color:var(--ink2);text-align:right;user-select:none;font-size:12px}
-table.diff td.sig{width:1%;padding:0 4px;user-select:none}
+table.diff td:nth-child(-n+2){width:1%;color:var(--ink2);text-align:right;font-size:12px}
+table.diff td.sig{width:1%;padding:0 4px}
 table.diff tr.add td{background:var(--add)} table.diff tr.add td:nth-child(-n+3){color:var(--add-ink)}
 table.diff tr.rem td{background:var(--rem)} table.diff tr.rem td:nth-child(-n+3){color:var(--rem-ink)}
 table.diff tr.hunk td{background:var(--hunk);color:var(--ink2);padding:6px 12px}

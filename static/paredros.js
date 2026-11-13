@@ -9,7 +9,7 @@
   if(!window.PAREDROS) return;               // opened as a file: no server, no chat
   var quote="", opener=null;
   var ask=$('paredros-ask'), open=$('paredros-open'), chat=$('paredros-chat'), log=$('paredros-log'), q=$('paredros-q'),
-      qt=$('paredros-quote'), qb=$('paredros-qbox'), form=$('paredros-form');
+      qt=$('paredros-quote'), qb=$('paredros-qbox');
   open.classList.add('on');
   // questions the brief does not precompute; your bubble shows the button you pressed
   document.querySelectorAll('[data-ask]').forEach(function(b){
@@ -20,11 +20,12 @@
     document.documentElement.classList.remove('paredros-open'); open.classList.add('on');
     (opener&&document.contains(opener)&&opener!==document.body?opener:open).focus()}
   function setQuote(t){quote=t; qt.textContent=t; qb.classList.toggle('on',!!t)}
+  function selected(){   // the selected content; text being typed is not a selection to ask about
+    var s=window.getSelection(), a=document.activeElement;
+    return s&&s.rangeCount&&!(a&&/^(TEXTAREA|INPUT)$/.test(a.tagName))?s.toString().trim():""}
   function place(){
-    var s=window.getSelection(), t=s&&s.rangeCount?s.toString().trim():"";
-    var el=s&&s.anchorNode?(s.anchorNode.nodeType===1?s.anchorNode:s.anchorNode.parentElement):null;
-    if(!t||form.contains(s.anchorNode)||(el&&el.closest('button,input,textarea,select,a,nav,.qact,.qstate,#paredros-decisions'))){
-      ask.classList.remove('on'); return}
+    var s=window.getSelection(), t=selected();
+    if(!t){ask.classList.remove('on'); return}
     ask.classList.add('on'); ask.dataset.text=t.slice(0,1500);
     // 10 below the selection, kept inside the viewport (above it when there is no room below)
     var r=s.getRangeAt(0).getBoundingClientRect(), w=ask.offsetWidth||150, h=ask.offsetHeight||44;
@@ -33,7 +34,7 @@
     ask.style.left=(window.scrollX+x)+'px'; ask.style.top=(window.scrollY+y)+'px';
   }
   document.addEventListener('mouseup',function(e){
-    if(e.target.closest&&e.target.closest('button,input,textarea,select,a')) return;  // a click on a control is not a selection
+    var st=getComputedStyle(e.target); if((st.userSelect||st.webkitUserSelect)==='none') return;  // a click on the interface is not a selection
     if(e.target!==ask&&!ask.contains(e.target)) setTimeout(place,0)});
   document.addEventListener('keyup',function(e){if(e.shiftKey||e.key==='Shift') place()});
   ask.addEventListener('click',function(){setQuote(ask.dataset.text||""); ask.classList.remove('on'); show()});
@@ -41,7 +42,7 @@
   $('paredros-unquote').addEventListener('click',function(){setQuote(''); q.focus()});
   document.addEventListener('keydown',function(e){
     if(e.ctrlKey&&e.shiftKey&&!e.altKey&&(e.key==='A'||e.key==='a')){   // keyboard path to Ask about this
-      var s=window.getSelection(), t=s&&s.rangeCount&&!form.contains(s.anchorNode)?s.toString().trim():"";
+      var t=selected();
       e.preventDefault(); if(t) setQuote(t.slice(0,1500)); ask.classList.remove('on'); show(); return;
     }
     if(e.key!=='Escape') return;
