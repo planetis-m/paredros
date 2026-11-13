@@ -2,7 +2,10 @@ name: release
 
 # Builds paredros on one native runner per target, and on a
 # `v*` tag publishes the archives, SHA256SUMS and the install scripts as a
-# GitHub Release. `workflow_dispatch` builds and tests without releasing.
+# GitHub Release. A push to main and `workflow_dispatch` build and test
+# without releasing. The push to main is also what makes releases fast: a
+# tag run can restore caches made on the default branch but not on another
+# tag, so the nimony toolchain cached there is what each release reuses.
 #
 # Targets are the ones nativenif can emit for: linux/amd64, linux/arm64,
 # macosx/arm64 and windows/amd64. There is no macOS x86_64 or Windows ARM64
@@ -16,6 +19,7 @@ name: release
 
 on:
   push:
+    branches: [main]
     tags: ['v*']
   workflow_dispatch:
 
