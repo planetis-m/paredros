@@ -203,13 +203,11 @@ proc itemsHtml*(key: string; entries: seq[Entry]; cfg: Config; item = none[int](
 
 proc sectionHtml*(key, title: string; n: int; inner: Html; label = ""): Html =
   ## A section in its fixed place, with every entry and its exact count
-  ## (`label` instead, when given); an empty one is just its heading, saying
-  ## none.
-  let count = if label.len > 0: label elif n != 0: $n else: "none"
+  ## (`label` instead, when given); an empty one is just its heading and 0.
+  let count = if label.len > 0: label else: $n
   let head = tag("div", [attr("class", "sh")], tag("h2", [], title),
                  tag("span", [attr("class", "c")], count))
-  result = tag("section", [attr("id", key), attr("class", if n != 0: "s" else: "s z")], head,
-               if n != 0: inner else: Html(""))
+  result = tag("section", [attr("id", key), attr("class", if n != 0: "s" else: "s z")], head, inner)
 
 # --------------------------------------------------------------- item pages
 
@@ -329,7 +327,7 @@ proc indexPage(d: Work): Html =
     board.add tag("section", [attr("class", "lane lane-" & key & (if cards.len > 0: "" else: " z")),
                               attr("aria-labelledby", "lane-" & key)],
                   tag("div", [attr("class", "sh")], tag("h2", [attr("id", "lane-" & key)], title),
-                      tag("span", [attr("class", "c")], if cards.len > 0: $cards.len else: "none")),
+                      tag("span", [attr("class", "c")], $cards.len)),
                   if cards.len > 0: tag("ul", [attr("class", "cards")], cards) else: Html(""))
   # Where the data comes from and when it was read is status, not content: one
   # quiet line at the end, not above the title.

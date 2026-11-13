@@ -82,7 +82,7 @@ block build_shows_brief_code_and_sources:
   for s in Section:   # every section, every time
     assert "<h2>" & Sections[s].heading & "</h2>" in page
   assert """<section id="spec_conflicts" class="s z"><div class="sh"><h2>Contradicts the spec""" &
-    """</h2><span class="c">none</span></div></section>""" in page, "empty sections stay, saying so"
+    """</h2><span class="c">0</span></div></section>""" in page, "empty sections stay, saying so"
   # no config: no spec note, no compare button; the helpers speak of the project's users
   assert "No Spec line" notin page
   assert "class=\"paredros-acts\"" notin page

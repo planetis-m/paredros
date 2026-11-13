@@ -161,7 +161,7 @@ of open decisions. When served, "Your decisions" above the lanes lists your
 saved answers, each with its own Copy.
 
 Each item page is one column with these sections, always in this order; an
-empty section stays in place and says "none":
+empty section stays in place and shows 0:
 
 1. Summary: one sentence on what the current code does and what is left
 2. Decisions for you: open questions, the options, a suggestion

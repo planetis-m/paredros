@@ -29,7 +29,7 @@ Two things are replaced: the "Next: #N" link (its job moves to the Next item row
 ## 2. Principles
 
 1. **The decision is the point.** Each decision has one filled button (Save decision), and the next step after it (Copy) is the most visible control on that line. Everything else supports these two.
-2. **Same place, every time.** Fixed lanes, fixed sections, fixed order. An empty one stays where it is and says "none". A control's line keeps its height when its state changes.
+2. **Same place, every time.** Fixed lanes, fixed sections, fixed order. An empty one stays where it is and shows 0. A control's line keeps its height when its state changes.
 3. **Say it once.** A fact is shown once, in one form: a lane colour, a word or a control, never several at once.
 4. **Depth from tone, not lines.** Page, surface and the floating material are three tone steps. Hairlines are neutral and appear only between short rows of one group; large blocks, such as decisions, are separate groups with page between them. Colour comes only from the lanes, the one blue tint, and the diff.
 5. **Calm.** Nothing moves unless you did something. No badges, no popping, no gimmicks. There is room around everything.
@@ -51,7 +51,7 @@ Two things are replaced: the "Next: #N" link (its job moves to the Next item row
 | `--sep` | hairline between rows | `#dcdce1` | `#3c3c41` |
 | `--edge` | radio circle, field outline | `#8a8a8f` | `#8a8a91` |
 | `--ink` | text | `#1d1d1f` | `#f5f5f7` |
-| `--ink2` | secondary text, "none", stale messages | `#5f5f66` | `#aeaeb5` |
+| `--ink2` | secondary text, an empty one's heading and 0, stale messages | `#5f5f66` | `#aeaeb5` |
 | `--tint` | links, text controls, icons | `#0066cc` | `#5eaaff` |
 | `--tint-fill` | filled button; its hover mixes in 14% black | `#0066cc` | `#1170dc` |
 | `--on-tint` | text on a filled button | `#ffffff` | `#ffffff` |
@@ -170,7 +170,7 @@ Desktop, max 72rem, gutter 24                                   --page
 | |                   |  (empty status line keeps the height)         |
 | +-------------------+                                               |
 |                                                            (52)     |
-| Nothing open  none                                     ink2, 500    |  an empty lane, as an empty section
+| Nothing open  0                                        ink2, 500    |  an empty lane, as an empty section
 |                                                            (96)     |
 | Nimony, updated 17:57                                     footnote  |
 +--------------------------------------------------------------------+
@@ -214,7 +214,7 @@ Desktop: one column of 44rem, centred; phone: full width, gutter 16
 |   No Spec line means the spec says nothing on  |  footnote, only if one lacks a Spec line
 |   it.                                          |
 |                                          (56)  |
-| Contradicts the spec  none                     |  empty: ink2, 28 below
+| Contradicts the spec  0                        |  empty: ink2, 28 below
 | Needs another review  2                        |
 | +--------------------------------------------+ |
 | | Item text.                                 | |
@@ -327,7 +327,7 @@ Card grid, kept exactly as in bd249f5:
 
 Anatomy: a heading (22/600) with its count in 400 `--ink2`, then the card grid (minmax 15rem, gap 16, phone 12).
 
-An empty lane shows its heading in `--ink2` at 500 with "none" beside it and takes 28 below. The order is fixed: Waiting for your decision, Needs another review, Nothing open.
+An empty lane shows its heading in `--ink2` at 500 with 0 beside it and takes 28 below. The order is fixed: Waiting for your decision, Needs another review, Nothing open.
 
 An item goes into the first lane that applies:
 1. Waiting for your decision: its brief has open decisions.
@@ -364,7 +364,7 @@ Anatomy, in order, below the top bar ("‹ All items" only, 5.1):
 
 ### 5.6 Section
 
-Anatomy: a heading (22/600) with its count (400 `--ink2`), then one grouped list. The code section's count reads "3 files". An empty section shows its heading and "none", both in `--ink2` at 500.
+Anatomy: a heading (22/600) with its count (400 `--ink2`), then one grouped list. The code section's count reads "3 files". An empty section shows its heading and 0, both in `--ink2` at 500.
 
 The order is fixed: Decisions for you, Contradicts the spec, Needs another review, Could cause more bugs, Decisions made, The code. A section shows every entry of its list in the brief, most important first: nothing is capped, folded or behind a "Show more". Its count is the exact total.
 
@@ -459,7 +459,6 @@ On the last item the row reads only "All items ›" and links to the index.
 | Copy failed | Copy failed. Press Ctrl+C. |
 | Strip sent | 1 already sent. / 3 already sent. |
 | Lane headings | Waiting for your decision · Needs another review · Nothing open |
-| Empty lane or section | none |
 | Card status | 1 decision · 5 decisions · No brief yet |
 | Freshness | Nimony, updated 17:57 |
 | Top bar | All items |
@@ -534,7 +533,7 @@ Accessibility:
 
 1. Keep the baseline's character: the soft blue and sand lane tints, number capsules, counts beside headings, filled Save decision, soft Copy, the radio circles, icons next to words, and the blurred floating Ask and chat sheet. "Plainer" is a regression, not a simplification.
 2. Never add thin coloured bars, stripes, accent borders, pips, coloured dots, badges beyond the number capsule, lineage graphs, hook controls, a second column on item pages, a sticky bar, skeuomorphic or editorial/print styling, or a GNOME header-bar look.
-3. Lanes and sections are fixed in name, number and order. Empty ones stay and say "none". A section shows every entry, with its exact count: no cap, no fold, no "Show more", nothing behind a drop-down.
+3. Lanes and sections are fixed in name, number and order. Empty ones stay and show 0. A section shows every entry, with its exact count: no cap, no fold, no "Show more", nothing behind a drop-down.
 4. Each decision has one filled button. A new action is a soft or text button, an existing style. Don't invent a fourth button style.
 5. Every state change keeps the control line's height and position. Blur never changes a selection. No confirm dialogs, no auto-save, no save-all.
 6. No logistics on pages (PRs, branches, hashes, draft ids, agent names, times other than "updated" and "Sent … at"). Plain sentence-case words; every new string goes into section 6 in the same change.
