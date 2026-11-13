@@ -2,7 +2,7 @@ name: release
 
 # Builds paredros on one native runner per target, and on a
 # `v*` tag publishes the archives, SHA256SUMS and the install scripts as a
-# GitHub Release. A push to main and `workflow_dispatch` build and test
+# GitHub Release. A push to main, or a manual run on main, builds and tests
 # without releasing. The push to main is also what makes releases fast: a
 # tag run can restore caches made on the default branch but not on another
 # tag, so the nimony toolchain cached there is what each release reuses.
@@ -23,10 +23,12 @@ on:
     tags: ['v*']
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 env:
   NIMONY_REPO: https://github.com/nim-lang/nimony
-  # Must be a commit on nim-lang/nimony master. `git fetch <sha>` at this depth
-  # only succeeds while GitHub still advertises the commit.
+  # A commit on nim-lang/nimony master; the fetch fails if it ever becomes unreachable.
   NIMONY_COMMIT: 4ba90a781b0b22d0821efaa153c129c37cef6143
 
 jobs:
@@ -35,11 +37,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { runner: ubuntu-latest,    os: linux,   arch: amd64, cpu: amd64, ext: tar.gz, backend: n }
-          - { runner: ubuntu-26.04-arm, os: linux,   arch: arm64, cpu: arm64, ext: tar.gz, backend: c }
-          - { runner: macos-latest,     os: macos,   arch: arm64, cpu: arm64, ext: tar.gz, backend: c }
-          - { runner: windows-latest,   os: windows, arch: amd64, cpu: amd64, ext: zip,    backend: n }
+          - { runner: ubuntu-latest,    os: linux,   arch: amd64, ext: tar.gz, backend: n }
+          - { runner: ubuntu-26.04-arm, os: linux,   arch: arm64, ext: tar.gz, backend: c }
+          - { runner: macos-latest,     os: macos,   arch: arm64, ext: tar.gz, backend: c }
+          - { runner: windows-latest,   os: windows, arch: amd64, ext: zip,    backend: n, exe: .exe }
     runs-on: ${{ matrix.runner }}
+    env:
+      NAME: paredros-${{ matrix.os }}-${{ matrix.arch }}.${{ matrix.ext }}
     defaults:
       run:
         shell: bash
@@ -91,31 +95,26 @@ jobs:
 
       - name: Build paredros
         working-directory: app
+        # arm64 macOS refuses unsigned code; the linker (nifasm, or the system
+        # linker for `nimony c`) signs ad hoc, and the smoke test checks it.
         run: |
-          exe=""
-          if [ "${{ runner.os }}" = Windows ]; then exe=.exe; fi
-          ../nimony/bin/nimony ${{ matrix.backend }} -d:release -o:"dist/paredros$exe" paredros.nim
-          # arm64 macOS refuses unsigned code; the linker (nifasm, or the system
-          # linker for `nimony c`) signs ad hoc, and the smoke test checks it.
-          ./dist/paredros$exe -h
+          ../nimony/bin/nimony ${{ matrix.backend }} -d:release -o:dist/paredros${{ matrix.exe }} paredros.nim
+          ./dist/paredros${{ matrix.exe }} -h
 
       - name: Package
-        id: package
         working-directory: app
         run: |
-          name="paredros-${{ matrix.os }}-${{ matrix.arch }}.${{ matrix.ext }}"
           cp README.md dist/
           if [ "${{ matrix.ext }}" = zip ]; then
-            (cd dist && 7z a -tzip "../$name" paredros.exe README.md > /dev/null)
+            (cd dist && 7z a -tzip "../$NAME" paredros.exe README.md > /dev/null)
           else
-            COPYFILE_DISABLE=1 tar -C dist -czf "$name" paredros README.md
+            COPYFILE_DISABLE=1 tar -C dist -czf "$NAME" paredros README.md
           fi
-          echo "name=$name" >> "$GITHUB_OUTPUT"
 
       - uses: actions/upload-artifact@v7
         with:
-          name: ${{ steps.package.outputs.name }}
-          path: app/${{ steps.package.outputs.name }}
+          name: ${{ env.NAME }}
+          path: app/${{ env.NAME }}
           if-no-files-found: error
 
   release:
@@ -140,8 +139,7 @@ jobs:
           cd dist
           sha256sum paredros-* > SHA256SUMS
           cat SHA256SUMS
-          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
-            --title "$GITHUB_REF_NAME" --generate-notes \
+          gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --generate-notes \
             paredros-* SHA256SUMS install.sh install.ps1
 
   install-test:
@@ -163,8 +161,6 @@ jobs:
 
       - name: Install with install.ps1
         if: runner.os == 'Windows'
-        shell: pwsh
         run: |
           irm "https://github.com/${{ github.repository }}/releases/download/$env:PAREDROS_VERSION/install.ps1" | iex
           & "$env:LOCALAPPDATA\Programs\paredros\paredros.exe" -h
-          if ($LASTEXITCODE -ne 0) { exit 1 }
