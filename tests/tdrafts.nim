@@ -49,7 +49,7 @@ block a_draft_is_a_record_and_its_text_is_derived:
     of "code", "brief": assert v.kind == JNull, k & " is null"
     else: discard
   assert keys == @["item", "did", "question", "option", "code", "brief"], "the record's keys"
-  assert dr.get(Draft()).text == "#7: Q with a line?\nMy decision: Yes. (d2, approved by me)"
+  assert dr.get(Draft()).text == "Q with a line?\nMy decision: Yes. (d2, approved by me)"
   let w = withdraw(Sid, "d2")
   assert w.isOk and w.get(false), "withdrawn"
   assert fileExists(d & "/d2.withdrawn"), "kept as d2.withdrawn"

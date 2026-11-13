@@ -141,7 +141,7 @@ block copy_makes_the_same_checks_as_send:
   discard post("/decide", decide & "\"h2\"}")
   r = post("/send", "{\"id\": " & quote(id) & "}")
   var sent = parseJson(r.body)
-  assert r.status == 200 and sent{"text"}.getStr.splitLines[0] == "#7: " & q, "copied: " & r.body
+  assert r.status == 200 and sent{"text"}.getStr.splitLines[0] == q, "copied: " & r.body
   writeText(spath, before & user(sent{"text"}.getStr, "2026-11-09T09:00:00Z") & "\n")  # pasted
   r = post("/send", "{\"id\": " & quote(id) & "}")
   assert r.status == 409 and "\"delivered\": \"2026-11-09T09:00" in r.body,

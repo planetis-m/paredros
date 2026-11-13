@@ -18,7 +18,7 @@ type
     code*: string          ## the item's code tip the page showed; "" for none
     brief*: string         ## the inputs hash of the brief the page showed; "" for none
     decision*: string      ## "<item>:<did>"
-    text*: string          ## "#<item>: <question>\nMy decision: <option>. (d<N>, approved by me)"
+    text*: string          ## "<question>\nMy decision: <option>. (d<N>, approved by me)"
   DraftState* = object
     ## A draft as the page shows it.
     id*, decision*: string
@@ -78,8 +78,7 @@ proc readDraft(p: string): Result[Draft, string] =
   for k in ["item", "did", "question", "option"]:
     if k notin have: return err[Draft, string](p & " has no " & k)
   dr.decision = $dr.item & ":" & dr.did
-  dr.text = "#" & $dr.item & ": " & dr.question & "\nMy decision: " & dr.option & ". (" & id &
-            ", approved by me)"
+  dr.text = dr.question & "\nMy decision: " & dr.option & ". (" & id & ", approved by me)"
   result = ok[Draft, string](dr)
 
 proc allDrafts*(sid: string): Result[seq[Draft], string] =
