@@ -2,9 +2,10 @@
 ## $STATE/directions/<s>/d<N>.json, written when the human saves an answer on
 ## a page (that is the approval), re-checked against the current code and
 ## brief before its text leaves paredros, and delivered when the human pastes its
-## text, which ends `(d<N>, approved by me)`, into the session.
+## text, which ends `(<tag>, approved by me)`, into the session.
 
 import std/[syncio, strutils, os, paths, dirs, files, algorithm, tables, json, opt, result]
+import std/crypto/sha2
 import state, session, brief, work
 
 type
@@ -18,7 +19,9 @@ type
     code*: string          ## the item's code tip the page showed; "" for none
     brief*: string         ## the inputs hash of the brief the page showed; "" for none
     decision*: string      ## "<item>:<did>"
-    text*: string          ## "<question>\nMy decision: <option>. (d<N>, approved by me)"
+    tag*: string           ## six hex digits of the session and the id: what the pasted
+                           ## text carries, so no other session's draft can match it
+    text*: string          ## "<question>\nMy decision: <option>. (<tag>, approved by me)"
   DraftState* = object
     ## A draft as the page shows it.
     id*, decision*: string
@@ -48,7 +51,7 @@ proc orNull(s: string): string =
 
 # -------------------------------------------------------------------- drafts
 
-proc readDraft(p: string): Result[Draft, string] =
+proc readDraft(sid, p: string): Result[Draft, string] =
   ## The draft in file p, as `decide` wrote it: {item, did, question, option,
   ## code, brief}, with its id, its key and the text that is pasted into the
   ## session. The error says why the file is no draft.
@@ -57,7 +60,7 @@ proc readDraft(p: string): Result[Draft, string] =
   var tree = parseJson(text, p)
   if tree.hasError: return err[Draft, string]("cannot read " & p & ": " & tree.errorMsg)
   var dr = Draft(id: id, item: 0, did: "", question: "", option: "", code: "", brief: "",
-                 decision: "", text: "")
+                 decision: "", tag: "", text: "")
   var have: seq[string] = @[]   # the keys the text is built from
   if tree.root.kind == JObject:
     for k, v in pairs(tree.root):
@@ -78,7 +81,8 @@ proc readDraft(p: string): Result[Draft, string] =
   for k in ["item", "did", "question", "option"]:
     if k notin have: return err[Draft, string](p & " has no " & k)
   dr.decision = $dr.item & ":" & dr.did
-  dr.text = dr.question & "\nMy decision: " & dr.option & ". (" & id & ", approved by me)"
+  dr.tag = toHex(sha256(sid & "/" & id)).substr(0, 5).toLowerAscii
+  dr.text = dr.question & "\nMy decision: " & dr.option & ". (" & dr.tag & ", approved by me)"
   result = ok[Draft, string](dr)
 
 proc allDrafts*(sid: string): Result[seq[Draft], string] =
@@ -95,16 +99,16 @@ proc allDrafts*(sid: string): Result[seq[Draft], string] =
   found.sort(proc (a, b: (int, string)): int = cmp(a[0], b[0]))
   var drafts: seq[Draft] = @[]
   for (n, p) in found:
-    let dr = readDraft(p)
+    let dr = readDraft(sid, p)
     if dr.isErr: return err[seq[Draft], string](dr.error(""))
     drafts.add dr.get(Draft())
   result = ok[seq[Draft], string](drafts)
 
 proc deliveredAt(dr: Draft; recs: seq[Rec]): Opt[string] =
   ## When the human pasted the draft into the session: the time of the first
-  ## message they typed that holds "(d<N>,"; none if they did not.
+  ## message they typed that holds "(<tag>,"; none if they did not.
   # A message with no time counts as not delivered.
-  let tag = "(" & dr.id & ","
+  let tag = "(" & dr.tag & ","
   for r in recs:
     if isHuman(r) and tag in textOf(r) and r.timestamp.len > 0: return some(r.timestamp)
   result = none[string]()
@@ -152,7 +156,7 @@ proc decide*(sid, spath: string; item: int; did, question, option: string; code 
     writeAtomic(p, record)
   except:
     return err[Draft, string]("cannot write " & p)
-  result = readDraft(p)
+  result = readDraft(sid, p)
 
 proc withdraw*(sid, spath, name: string): Result[bool, string] =
   ## Discard: draft `name` becomes d<N>.withdrawn, so its number is never
@@ -163,7 +167,7 @@ proc withdraw*(sid, spath, name: string): Result[bool, string] =
   let p = state("directions", sid) & "/" & name
   result = ok[bool, string](false)
   if fileExists(p & ".json"):
-    let dr = readDraft(p & ".json")
+    let dr = readDraft(sid, p & ".json")
     if dr.isErr: return err[bool, string](dr.error(""))
     if deliveredAt(dr.get(Draft()), readJsonl(spath)).isSome:
       return err[bool, string]("already sent to the session")

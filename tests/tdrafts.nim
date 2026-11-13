@@ -49,7 +49,8 @@ block a_draft_is_a_record_and_its_text_is_derived:
     of "code", "brief": assert v.kind == JNull, k & " is null"
     else: discard
   assert keys == @["item", "did", "question", "option", "code", "brief"], "the record's keys"
-  assert dr.get(Draft()).text == "Q with a line?\nMy decision: Yes. (d2, approved by me)"
+  let tg = dr.get(Draft()).tag
+  assert tg.len == 6 and dr.get(Draft()).text == "Q with a line?\nMy decision: Yes. (" & tg & ", approved by me)"
   writeText(d & "/d8.json", "not a draft")
   let w = withdraw(Sid, spathOf(Sid), "d2")
   assert w.isOk and w.get(false), "withdrawn, whatever another draft file holds"
@@ -72,12 +73,12 @@ block decisions_draft_stale_and_delivered:
   let q = "Allow a call as a field default?"
   let did = decisionId(q)
   let dr = decide(Sid, spath, 7, did, q, "Yes", brief = "h1").get(Draft())
-  assert "My decision: Yes. (d" in dr.text
+  assert "My decision: Yes. (" & dr.tag & "," in dr.text
   var st = stateOf(Sid, spath, dr.id)
   assert st.stale.len == 0 and st.delivered.isNone, "fresh and not sent"
   let again = decide(Sid, spath, 7, did, q, "No", brief = "h1").get(Draft())
   assert again.id == dr.id, "choosing again rewrites the same draft"
-  assert "My decision: No. (d" in again.text
+  assert "My decision: No. (" & again.tag & "," in again.text
   writeCache(Sid, 7, "h2")
   assert stateOf(Sid, spath, dr.id).stale == @["New evidence."]
   discard decide(Sid, spath, 7, did, q, "No", brief = "h2")   # Save again: the same draft,
@@ -88,6 +89,10 @@ block decisions_draft_stale_and_delivered:
   assert v.draft.isSome and
     v.why.get("") == "the facts changed since you decided; save it again on its page"
   writeCache(Sid, 7, "h3")
+  # another session's decision quoted here carries its own tag, not this draft's
+  writeText(spath, before & user("the copied \"Q?\nMy decision: No. (" & dr.id &
+                                 ", approved by me)\"", "2026-11-09T08:00:00Z") & "\n")
+  assert stateOf(Sid, spath, dr.id).delivered.isNone, "a quote of another draft is no delivery"
   writeText(spath, before & user(again.text, "2026-11-09T09:00:00Z") & "\n")   # the human pasted it
   st = stateOf(Sid, spath, dr.id)
   assert st.delivered.get("").substr(0, 15) == "2026-11-09T09:00"

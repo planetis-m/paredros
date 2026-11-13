@@ -182,7 +182,7 @@ The text pasted into the session is built from it, never stored:
 
 ```
 <question>
-My decision: <answer>. (d<N>, approved by me)
+My decision: <answer>. (<tag>, approved by me)
 ```
 
 A Copy of several decisions joins their texts with a blank line, so one paste
@@ -195,7 +195,9 @@ delivers them all.
   Discard renames it to `d<N>.withdrawn`, so a number is never reused; a
   delivered draft is not withdrawn.
 - A draft is **delivered** when a human-typed message in the main transcript
-  contains `(d<N>,`. Delivered drafts are never stale and never copied again.
+  contains `(<tag>,`: the first six hex digits of SHA-256 of the session id and
+  `d<N>`, so a draft can only match its own session's text. Delivered drafts
+  are never stale and never copied again.
 - A draft is **stale** when what it recorded no longer holds: the item's code
   tip differs ("The code changed.") or the brief's `inputs` differs ("New
   evidence."). The page shows these reasons as the server gives them.

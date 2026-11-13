@@ -242,7 +242,8 @@ you saw: the item's code and its brief as the page showed them. Copy on the
 page makes the check: it refuses when the
 draft already reached the session or when those facts changed since (then
 save it again on its page). Otherwise it copies the text, which ends with
-`(d3, approved by me)`. You paste it into the session between turns.
+`(c7f2e1, approved by me)`, a tag of six hex digits unique to that draft. You
+paste it into the session between turns.
 
 ## Limitations
 
