@@ -181,9 +181,12 @@ An indented file reads the same.
 The text pasted into the session is built from it, never stored:
 
 ```
-#<item>: <question>
+<question>
 My decision: <answer>. (d<N>, approved by me)
 ```
+
+A Copy of several decisions joins their texts with a blank line, so one paste
+delivers them all.
 
 - Drafts come only from saving on a page; saving is the approval. Older
   `d<N>.md` drafts (a header of fact lines) are not read: only three existed,

@@ -2,7 +2,7 @@
 ## drafts, and a decision that holds across a new brief (the ledger side is
 ## in twork, the page in tpages).
 
-import std/[syncio, strutils, os, assertions, json, opt, result, tables]
+import std/[syncio, strutils, os, paths, files, assertions, json, opt, result, tables]
 import fixtures
 import ../paredros/[state, brief, work, drafts]
 
@@ -50,8 +50,11 @@ block a_draft_is_a_record_and_its_text_is_derived:
     else: discard
   assert keys == @["item", "did", "question", "option", "code", "brief"], "the record's keys"
   assert dr.get(Draft()).text == "Q with a line?\nMy decision: Yes. (d2, approved by me)"
+  writeText(d & "/d8.json", "not a draft")
   let w = withdraw(Sid, spathOf(Sid), "d2")
-  assert w.isOk and w.get(false), "withdrawn"
+  assert w.isOk and w.get(false), "withdrawn, whatever another draft file holds"
+  try: removeFile(path(d & "/d8.json"))
+  except: quit "cannot remove the stray draft file"
   assert fileExists(d & "/d2.withdrawn"), "kept as d2.withdrawn"
   let again = decide(Sid, spathOf(Sid), 7, "abc", "Q?", "No")
   assert again.get(Draft()).id == "d3", "a withdrawn number is not reused"
@@ -92,7 +95,7 @@ block decisions_draft_stale_and_delivered:
   let sent = check(Sid, spath, dr.id).get(Verdict())
   assert sent.why.get("") == "already sent to the session at 2026-11-09T09:00"
   assert withdraw(Sid, spath, dr.id).error("") == "already sent to the session",
-    "Undo after pasting keeps the draft: the session has the answer"
+    "Discard after pasting keeps the draft: the session has the answer"
   assert stateOf(Sid, spath, dr.id).delivered.isSome, "still shown as sent"
   let none = check(Sid, spath, "d99").get(Verdict())
   assert none.draft.isNone and none.why.get("") == "no such draft"

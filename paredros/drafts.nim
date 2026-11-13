@@ -131,7 +131,7 @@ proc decide*(sid, spath: string; item: int; did, question, option: string; code 
   var mine = ""   # the decision's last draft not yet sent: saving again rewrites it
   for x in all.get(@[]):
     if x.decision == $item & ":" & did and deliveredAt(x, recs).isNone: mine = x.id
-  # a number is never reused, not even after Undo: withdrawn drafts keep theirs
+  # a number is never reused, not even after Discard: withdrawn drafts keep theirs
   var used = 0
   try:
     for (kind, p) in walkDir(path(d)):
@@ -155,7 +155,7 @@ proc decide*(sid, spath: string; item: int; did, question, option: string; code 
   result = readDraft(p)
 
 proc withdraw*(sid, spath, name: string): Result[bool, string] =
-  ## Undo: draft `name` becomes d<N>.withdrawn, so its number is never
+  ## Discard: draft `name` becomes d<N>.withdrawn, so its number is never
   ## reused. True when there was such a draft. The error says the id is bad,
   ## the draft already reached the session (it has the answer, so the draft
   ## stays), or the file cannot be renamed.
@@ -163,12 +163,10 @@ proc withdraw*(sid, spath, name: string): Result[bool, string] =
   let p = state("directions", sid) & "/" & name
   result = ok[bool, string](false)
   if fileExists(p & ".json"):
-    let all = allDrafts(sid)
-    if all.isErr: return err[bool, string](all.error(""))
-    let recs = readJsonl(spath)
-    for dr in all.get(@[]):
-      if dr.id == name and deliveredAt(dr, recs).isSome:
-        return err[bool, string]("already sent to the session")
+    let dr = readDraft(p & ".json")
+    if dr.isErr: return err[bool, string](dr.error(""))
+    if deliveredAt(dr.get(Draft()), readJsonl(spath)).isSome:
+      return err[bool, string]("already sent to the session")
     try:
       moveFile(path(p & ".json"), path(p & ".withdrawn"))
       result = ok[bool, string](true)

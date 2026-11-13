@@ -33,9 +33,12 @@
     var y=r.bottom+10+h>window.innerHeight-8&&r.top-10-h>=8?r.top-10-h:r.bottom+10;
     ask.style.left=(window.scrollX+x)+'px'; ask.style.top=(window.scrollY+y)+'px';
   }
+  // a click that leaves the selection as it was (on a button, say) is not a new selection
+  var before='';
+  document.addEventListener('mousedown',function(){before=String(window.getSelection())});
   document.addEventListener('mouseup',function(e){
-    var st=getComputedStyle(e.target); if((st.userSelect||st.webkitUserSelect)==='none') return;  // a click on the interface is not a selection
-    if(e.target!==ask&&!ask.contains(e.target)) setTimeout(place,0)});
+    if(e.target!==ask&&!ask.contains(e.target))
+      setTimeout(function(){if(String(window.getSelection())!==before) place()},0)});
   document.addEventListener('keyup',function(e){if(e.shiftKey||e.key==='Shift') place()});
   ask.addEventListener('click',function(){setQuote(ask.dataset.text||""); ask.classList.remove('on'); show()});
   open.addEventListener('click',show); $('paredros-close').addEventListener('click',hide);
@@ -101,19 +104,32 @@
     var f=el('div','cfail'), p=el('p','','Copy failed. Press Ctrl+C.'), t=el('textarea'); t.readOnly=true; t.value=text;
     t.rows=Math.min(8,text.split('\n').length+1); f.appendChild(p); f.appendChild(t);
     after.parentNode.insertBefore(f,after.nextSibling); t.focus(); t.select(); return f}
-  // Copy, on a page or on the index: the server re-checks each saved decision
-  // first. Those that may go are copied as one text, one per paragraph, so one
-  // paste sends them all; for each that may not, its state as the server sees it
-  // now (out of date, already sent, or gone) is repainted.
-  function copyAll(ids,copied,failed,repaint){
-    return Promise.all(ids.map(function(id){return api('/send',{id:id})})).then(function(rs){
-      var texts=[];
-      rs.forEach(function(r,i){if(r._status===200) texts.push(r.text); else repaint(i,r.draft||null,r.error||'')});
-      if(!texts.length) return;
-      var t=texts.join('\n\n');
-      return clip(t).then(copied,function(){failed(t)});
-    })}
-  function copyLabel(b,n){b.lastChild.textContent=n>1?'Copy '+n+' decisions':'Copy decision'; b.disabled=!n}
+  // One Copy for several saved decisions, placed after their group, on a page or
+  // on the index. The server re-checks each first; those that may go are copied
+  // as one text, one per paragraph, so one paste sends them all. ready() gives
+  // what may be copied now, each as {id, repaint}; repaint takes the server's
+  // answer for one that may not (out of date, already sent, or gone). update()
+  // relabels the bar; a new count clears "Copied.".
+  function copyBar(after,ready){
+    var bar=el('div','pcopy'), line=el('span','pline'), n=-1, b;
+    line.setAttribute('aria-live','polite');
+    b=btn('Copy decision',function(){
+      var rs=ready(), f=bar.nextElementSibling; if(f&&f.classList.contains('cfail')) f.remove(); line.textContent='';
+      Promise.all(rs.map(function(x){return api('/send',{id:x.id})})).then(function(res){
+        var texts=[];
+        res.forEach(function(r,i){if(r._status===200) texts.push(r.text); else rs[i].repaint(r)});
+        bar.update();
+        if(!texts.length) return;
+        var t=texts.join('\n\n');
+        return clip(t).then(function(){line.textContent='Copied.'},function(){failField(bar,t)});
+      }).catch(function(e){line.textContent=String(e)});
+    },'soft','copy');
+    bar.appendChild(b); bar.appendChild(line); after.parentNode.insertBefore(bar,after.nextSibling);
+    bar.update=function(){
+      var k=ready().length; if(k!==n){n=k; line.textContent=''}
+      b.lastChild.textContent=k>1?'Copy '+k+' decisions':'Copy decision'; b.disabled=!k};
+    bar.update(); return bar;
+  }
 
   // One commit model for every answer: choosing a listed option or typing your
   // own answer only selects it; Save decision (or Enter in the field) commits it. The
@@ -148,7 +164,6 @@
     stops.forEach(function(r){r.tabIndex=r===on?0:-1});
     if(st.dataset.view!==v||li._err){   // same line: keep it, and keep focus where it is
       st.dataset.view=v; st.textContent=''; st.hidden=false;
-      var f=li.querySelector('.cfail'); if(f) f.remove();
       if(li._err){st.appendChild(msg('err','Not saved. '+li._err)); li._err=''}
       if(v==='sent') st.appendChild(msg('ok','Sent at '+hhmm(dr.delivered)+'.'));
       else if(v==='choose'||v==='change'){
@@ -219,26 +234,18 @@
     e.preventDefault(); pick(li,rs[(i+(fwd?1:-1)+rs.length)%rs.length]);
   }
   var items=document.querySelectorAll('li.q[data-did]');
-  // one Copy for the page, at the end of its decisions: every saved answer that
-  // is current and not sent yet, so one paste sends them all
-  var pc=null, pcb=null, pcl=null, sec=document.getElementById('open_decisions');
-  if(sec&&items.length){
-    pc=el('div','pcopy'); pcl=el('span','pline'); pcl.setAttribute('aria-live','polite');
-    pcb=btn('Copy decision',function(){
-      var ready=[].filter.call(items,function(li){return view(li)==='saved'});
-      var f=pc.parentNode.querySelector('.cfail'); if(f) f.remove(); pcl.textContent='';
-      copyAll(ready.map(function(li){return li._dr.id}),function(){pcl.textContent='Copied.'},
-        function(text){failField(pc,text)},
-        function(i,dr,err){if(dr) paint(ready[i],dr); else{ready[i]._err=err; render(ready[i])}}
-      ).catch(function(e){pcl.textContent=String(e)});
-    },'soft','copy');
-    pc.appendChild(pcb); pc.appendChild(pcl); sec.appendChild(pc);
-  }
+  // one Copy for the page, below its decisions: every answer that is saved,
+  // current and not sent yet. A refusal repaints the decision: an error stays
+  // on its line; out of date, sent or gone (null) paints what the server has.
+  var sec=document.getElementById('open_decisions'), pc=sec&&items.length?copyBar(sec.lastElementChild,function(){
+    return [].filter.call(items,function(li){return view(li)==='saved'}).map(function(li){
+      return {id:li._dr.id, repaint:function(r){
+        if(r._status===500){li._err=r.error; render(li)} else paint(li,r.draft||null)}}})
+  }):null;
   function pageCopy(){
     if(!pc) return;
-    var all=[].slice.call(items);
-    pc.hidden=all.every(function(li){return view(li)==='sent'});
-    copyLabel(pcb,all.filter(function(li){return view(li)==='saved'}).length);
+    pc.hidden=[].every.call(items,function(li){return view(li)==='sent'});
+    pc.update();
   }
   items.forEach(function(li){
     var group=li.querySelector('.opts'); if(group) group.addEventListener('keydown',function(e){arrows(li,e)});
@@ -284,24 +291,14 @@
       };
       r.paint(); ul.appendChild(li); rows.push(r);
     });
-    if(open.length){
-      var pc=el('div','pcopy'), pcl=el('span','pline'), b;
-      pcl.setAttribute('aria-live','polite');
-      var ready=function(){return rows.filter(function(r){return !r.done&&!(r.d.stale&&r.d.stale.length)})};
-      b=btn('Copy decision',function(){
-        var rs=ready(), f=s.querySelector('.cfail'); if(f) f.remove(); pcl.textContent='';
-        rows.forEach(function(r){r.line.textContent=''});
-        copyAll(rs.map(function(r){return r.d.id}),function(){pcl.textContent='Copied.'},
-          function(text){failField(pc,text)},
-          function(i,dr,err){var r=rs[i];
-            if(dr&&!dr.delivered){r.d.stale=dr.stale; r.paint()}
-            else{r.done=true; r.line.textContent=dr?'Already sent.':err}
-            copyLabel(b,ready().length)}
-        ).catch(function(e){pcl.textContent=String(e)});
-      },'soft','copy');
-      copyLabel(b,ready().length);
-      pc.appendChild(b); pc.appendChild(pcl); ul.parentNode.insertBefore(pc,ul.nextSibling);
-    }
+    // one Copy under the group for every row that is not out of date; a row the
+    // server refuses is marked out of date, or says it was sent or why not
+    if(open.length) copyBar(ul,function(){
+      return rows.filter(function(r){return !r.done&&!(r.d.stale&&r.d.stale.length)}).map(function(r){
+        return {id:r.d.id, repaint:function(x){
+          if(x.draft&&!x.draft.delivered){r.d.stale=x.draft.stale; r.paint()}
+          else{r.done=true; r.line.textContent=x.draft?'Already sent.':x.error||''}}}})
+    });
     var p=s.querySelector('.dsent'); p.hidden=!sent; p.textContent=sent+' already sent.';
   }
 

@@ -79,9 +79,9 @@ section.z h2,section.z .sh .c{color:var(--ink2);font-weight:500}
    fill, cards needing review on sand, settled ones on plain white. */
 #paredros-decisions .dh{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 16px;min-height:44px;margin:0 0 12px}
 /* each row is one target that opens its decision: the question link is stretched
-   over the row; Copy, the message and a copy-failed field sit above it */
-#paredros-decisions li{display:grid;grid-template-columns:minmax(0,1fr);gap:4px 20px;align-items:center}
-#paredros-decisions li:hover:not(:has(.cfail:hover)){background:var(--hover)}
+   over the row; the row's message line sits above it */
+#paredros-decisions li{display:grid;gap:4px;align-items:center}
+#paredros-decisions li:hover{background:var(--hover)}
 #paredros-decisions ul{overflow:hidden}
 .dmain{min-width:0}
 .dans{margin:0;font-weight:500;overflow-wrap:anywhere}
@@ -92,15 +92,15 @@ a.dq:focus-visible{outline:none}
 a.dq:focus-visible::after{outline:3px solid var(--ring);outline-offset:-3px;border-radius:14px}
 .dqt{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .dno{margin-right:8px}
-.dline,.cfail{position:relative;z-index:1}
+.dline{position:relative;z-index:1}
 /* one Copy for a page's or the strip's saved decisions, under the group */
 .pcopy{display:flex;flex-wrap:wrap;align-items:center;gap:0 12px;min-height:44px;margin-top:16px}
 .pcopy[hidden]{display:none}
 .pline{font-size:15px;line-height:1.45;color:var(--ink2)}
-.dline{grid-column:1/-1;margin:4px 0 0;font-size:15px;line-height:1.45;color:var(--ink2)}
+.dline{margin:4px 0 0;font-size:15px;line-height:1.45;color:var(--ink2)}
 .dline:empty{display:none}
 /* copying failed: the exact text, selected, ready for Ctrl+C */
-.cfail{grid-column:1/-1;margin-top:8px}
+.cfail{margin-top:8px}
 .cfail p{margin:0 0 8px;font-size:15px;line-height:1.45}
 .cfail textarea,#paredros-q{display:block;width:100%;min-height:5.5em;padding:10px 14px;border:1px solid var(--edge);border-radius:12px;
 background:var(--surface);color:var(--ink);font:15px/1.5 var(--sans);resize:vertical}
@@ -195,13 +195,12 @@ font:16px/1.5 var(--sans);color:var(--ink);resize:none;overflow:hidden}
 /* two quiet helpers, their text in line with the card's */
 .qact{display:flex;flex-wrap:wrap;gap:4px 8px;margin:16px 0 0 -12px}
 /* one line under the options, always there when served: Save decision, then what
-   happened (an icon, a short word, Copy, Undo). Every state is one line of
+   happened (an icon, a short word, Discard). Every state is one line of
    the same height, so switching between them does not move the page */
 .qstate{display:flex;flex-wrap:wrap;align-items:center;gap:0 8px;min-height:44px;margin-top:8px;font-size:15px;line-height:22px;color:var(--ink2)}
 .qstate .msg{display:inline-flex;align-items:center;gap:8px;margin-right:4px}
 .qstate .msg svg{color:var(--tint)}
 .qstate .msg.err{color:var(--ink)}
-.qstate .soft{margin-right:4px}
 .qstate>.tb:first-child{margin-left:-12px}
 
 /* the code: the files form one grouped list; each row folds open */

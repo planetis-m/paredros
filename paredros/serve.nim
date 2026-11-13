@@ -310,7 +310,8 @@ proc act(s: Server; path, body: string): Reply =
     if w.isErr:
       # refused because it reached the session: the page repaints it as sent
       let c = check(s.sid, s.spath, q{"id"}.getStr)
-      if c.isOk and c.get(Verdict()).draft.isSome:
+      if c.isOk and c.get(Verdict()).draft.isSome and
+          c.get(Verdict()).draft.get(DraftState()).delivered.isSome:
         return json(409, "{\"draft\": " & draftJson(c.get(Verdict()).draft.get(DraftState())) &
                          ", \"error\": " & quote(w.error("")) & "}")
       return failed(w.error(""))

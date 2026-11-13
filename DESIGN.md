@@ -343,7 +343,7 @@ Hidden when there are no drafts. Anatomy:
 - One `--surface` group, r14. Each row is one target that opens its decision (`i63.html#q63-<did>`); hover fills it with `--hover`. Each row holds:
   - the answer (17/500 `--ink`, wraps in full);
   - "#63  " followed by the question (15 `--ink2`, 2-line clamp).
-- Build: the question line is the row's only link, and its `::after` is stretched over the row (`position:absolute; inset:0`), so the link's name is "#63 <question>" and its focus ring (inset 3px) outlines the row. The row's message line and a copy-failed field sit above it (`position:relative; z-index:1`).
+- Build: the question line is the row's only link, and its `::after` is stretched over the row (`position:absolute; inset:0`), so the link's name is "#63 <question>" and its focus ring (inset 3px) outlines the row. The row's message line sits above it (`position:relative; z-index:1`).
 - Below the group, 16 down: one soft Copy with the copy icon, "Copy decision" or "Copy 3 decisions", for every row that is not out of date; dimmed when there is none. "Copied." follows it.
 - Then "N already sent." (13 `--ink2`), when there are any.
 
