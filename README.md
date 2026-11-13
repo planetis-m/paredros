@@ -158,7 +158,7 @@ that applies (open decisions; else spec conflicts, entries that need another
 review, or no brief yet; else nothing open). Cards are coloured by lane,
 ordered by number and all the same size; decision cards give the exact number
 of open decisions. When served, "Your decisions" above the lanes lists your
-saved answers, each with its own Copy.
+saved answers, with one Copy for all that are current.
 
 Each item page is one column with these sections, always in this order; an
 empty section stays in place and shows 0:
@@ -183,8 +183,9 @@ agent's full report.
 When served, each decision is a radio group: the options, then a field for
 your own answer. Choosing only selects; Save decision (or Enter in the field)
 writes the approved draft, recording the item's code and the brief as the
-page showed them. Then Copy puts its text on the clipboard, after checking its
-facts again, and you paste it into the session. Undo withdraws the draft
+page showed them. One Copy below the decisions puts the text of every saved,
+current one on the clipboard, after checking their facts again, and you paste
+it into the session once. Discard withdraws a draft that was not sent yet
 (its number is never reused) and leaves your answer selected; an unsaved
 choice is not stored once you leave the page. When the item's code or its
 brief changed since you saved, the answer is marked "Out of date" and "Save
@@ -232,7 +233,7 @@ works and does not interrupt it.
 |---|---|
 | stop or pause the work | Esc in the session's terminal, now |
 | answer a question it asked | type the answer there, now |
-| answer a decision on a page | save it there, then Copy and paste it |
+| answer a decision on a page | save it there, then Copy and paste |
 | change a design direction | type it into the session |
 | understand something | ask the companion; nothing is sent |
 

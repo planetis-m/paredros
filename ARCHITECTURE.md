@@ -189,7 +189,8 @@ My decision: <answer>. (d<N>, approved by me)
   `d<N>.md` drafts (a header of fact lines) are not read: only three existed,
   in two old sessions (A.11).
 - One draft per undelivered decision (`item:did`); saving again rewrites it.
-  Undo renames it to `d<N>.withdrawn`, so a number is never reused.
+  Discard renames it to `d<N>.withdrawn`, so a number is never reused; a
+  delivered draft is not withdrawn.
 - A draft is **delivered** when a human-typed message in the main transcript
   contains `(d<N>,`. Delivered drafts are never stale and never copied again.
 - A draft is **stale** when what it recorded no longer holds: the item's code
@@ -197,8 +198,9 @@ My decision: <answer>. (d<N>, approved by me)
   evidence."). The page shows these reasons as the server gives them.
 - The pasted text is a contract with `delivered_at` and with the human's
   session; it does not change without a migration.
-- `/send` answers every Copy with the draft's state now, so the page repaints
-  from it: out of date, already sent, or gone.
+- `/send` answers for each draft a Copy takes with its state now, so the page
+  repaints from it: out of date, already sent, or gone. `/withdraw` answers a
+  refused Discard the same way.
 
 ### 4.5 Companion state
 

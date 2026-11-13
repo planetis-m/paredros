@@ -101,14 +101,19 @@
     var f=el('div','cfail'), p=el('p','','Copy failed. Press Ctrl+C.'), t=el('textarea'); t.readOnly=true; t.value=text;
     t.rows=Math.min(8,text.split('\n').length+1); f.appendChild(p); f.appendChild(t);
     after.parentNode.insertBefore(f,after.nextSibling); t.focus(); t.select(); return f}
-  // Copy, on a card or on the index: the server re-checks the draft first. It is
-  // copied, or the clipboard failed, or it may not go: then the draft's state as
-  // the server sees it now (out of date, already sent, or gone) is repainted.
-  function send(id,copied,failed,repaint){
-    return api('/send',{id:id}).then(function(r){
-      if(r._status===200) return clip(r.text).then(copied,function(){failed(r.text)});
-      repaint(r.draft||null,r.error||'');
+  // Copy, on a page or on the index: the server re-checks each saved decision
+  // first. Those that may go are copied as one text, one per paragraph, so one
+  // paste sends them all; for each that may not, its state as the server sees it
+  // now (out of date, already sent, or gone) is repainted.
+  function copyAll(ids,copied,failed,repaint){
+    return Promise.all(ids.map(function(id){return api('/send',{id:id})})).then(function(rs){
+      var texts=[];
+      rs.forEach(function(r,i){if(r._status===200) texts.push(r.text); else repaint(i,r.draft||null,r.error||'')});
+      if(!texts.length) return;
+      var t=texts.join('\n\n');
+      return clip(t).then(copied,function(){failed(t)});
     })}
+  function copyLabel(b,n){b.lastChild.textContent=n>1?'Copy '+n+' decisions':'Copy decision'; b.disabled=!n}
 
   // One commit model for every answer: choosing a listed option or typing your
   // own answer only selects it; Save decision (or Enter in the field) commits it. The
@@ -150,15 +155,15 @@
         st.appendChild(btn('Save decision',function(){commit(li,pending(li))},'commit filled'));
         if(v==='change') st.appendChild(btn('Cancel',function(){restore(li)},'tb'));
       } else if(v==='stale'){
-        st.appendChild(btn('Save again',function(){commit(li,li.dataset.saved)},'tb'));
-        st.appendChild(btn('Undo',function(){undo(li)},'tb'));
+        st.appendChild(btn('Save again',function(){commit(li,li.dataset.saved)},'filled'));
+        st.appendChild(btn('Discard',function(){discard(li)},'tb'));
       } else {
         st.appendChild(msg('ok','Saved.'));
-        st.appendChild(btn('Copy',function(){copy(li)},'soft','copy'));
-        st.appendChild(btn('Undo',function(){undo(li)},'tb'));
+        st.appendChild(btn('Discard',function(){discard(li)},'tb'));
       }
     }
     li.classList.toggle('decided',v==='sent');
+    pageCopy();
     var c=st.querySelector('.commit'); if(c) c.disabled=!pending(li);
     // the saved answer, out of date: the mark sits where "Suggested" does
     li.querySelectorAll('.smark,.mark.only').forEach(function(m){m.remove()});
@@ -171,14 +176,7 @@
       }
     }
   }
-  function copy(li){
-    var st=li.querySelector('.qstate');
-    send(li._dr.id,function(){say(st,'ok','Copied.')},function(text){
-      say(st,'err','Copy failed. Press Ctrl+C.'); var f=li.querySelector('.cfail'); if(f) f.remove(); failField(st,text).querySelector('p').hidden=true},
-      function(dr){paint(li,dr)}).catch(function(e){li._err=String(e); render(li)});
-  }
-  function say(st,kind,text){var m=st.querySelector('.msg'), n=msg(kind,text); if(m) st.replaceChild(n,m); else st.insertBefore(n,st.firstChild)}
-  function undo(li){   // the draft goes; your answer stays selected, unsaved
+  function discard(li){   // the draft goes; your answer stays selected, unsaved
     api('/withdraw',{id:li._dr.id}).then(function(j){
       if(j.draft){paint(li,j.draft); return}   // already sent: it stays, shown as sent
       if(j.error){li._err=j.error; render(li); return}
@@ -221,6 +219,27 @@
     e.preventDefault(); pick(li,rs[(i+(fwd?1:-1)+rs.length)%rs.length]);
   }
   var items=document.querySelectorAll('li.q[data-did]');
+  // one Copy for the page, at the end of its decisions: every saved answer that
+  // is current and not sent yet, so one paste sends them all
+  var pc=null, pcb=null, pcl=null, sec=document.getElementById('open_decisions');
+  if(sec&&items.length){
+    pc=el('div','pcopy'); pcl=el('span','pline'); pcl.setAttribute('aria-live','polite');
+    pcb=btn('Copy decision',function(){
+      var ready=[].filter.call(items,function(li){return view(li)==='saved'});
+      var f=pc.parentNode.querySelector('.cfail'); if(f) f.remove(); pcl.textContent='';
+      copyAll(ready.map(function(li){return li._dr.id}),function(){pcl.textContent='Copied.'},
+        function(text){failField(pc,text)},
+        function(i,dr,err){if(dr) paint(ready[i],dr); else{ready[i]._err=err; render(ready[i])}}
+      ).catch(function(e){pcl.textContent=String(e)});
+    },'soft','copy');
+    pc.appendChild(pcb); pc.appendChild(pcl); sec.appendChild(pc);
+  }
+  function pageCopy(){
+    if(!pc) return;
+    var all=[].slice.call(items);
+    pc.hidden=all.every(function(li){return view(li)==='sent'});
+    copyLabel(pcb,all.filter(function(li){return view(li)==='saved'}).length);
+  }
   items.forEach(function(li){
     var group=li.querySelector('.opts'); if(group) group.addEventListener('keydown',function(e){arrows(li,e)});
     li._dr=null; li.dataset.saved=''; li.dataset.sel=''; li.dataset.other='';
@@ -243,36 +262,46 @@
     if(gr) gr.addEventListener('click',function(){window.paredrosAsk(gr.dataset.q+'\n'+opts, li.dataset.question, gr.textContent)});
   });
 
-  // the index: your saved decisions, each ready to copy
+  // the index: your saved decisions, and one Copy for all that are current
   function strip(drafts){
     var s=document.getElementById('paredros-decisions'); if(!s) return;
     var open=drafts.filter(function(d){return !d.delivered}), sent=drafts.length-open.length;
     if(!open.length&&!sent) return;
     s.hidden=false;
-    var ul=s.querySelector('ul');
+    var ul=s.querySelector('ul'), rows=[];
     ul.hidden=!open.length;
     open.forEach(function(d){
       var n=d.item, did=d.decision.split(':')[1], href='i'+n+'.html#q'+n+'-'+did;
       var li=el('li'), main=el('div','dmain'), ans=el('p','dans',d.option||''), q=el('a','dq'),
-          act=el('div','dact'), line=el('p','dline'), r={};
+          line=el('p','dline'), r={d:d,line:line};
       q.href=href; var qt=el('span','dqt'); qt.appendChild(el('span','dno','#'+n)); qt.appendChild(document.createTextNode(d.question)); q.appendChild(qt);
       line.setAttribute('aria-live','polite');
-      main.appendChild(ans); main.appendChild(q); li.appendChild(main); li.appendChild(act); li.appendChild(line);
+      main.appendChild(ans); main.appendChild(q); li.appendChild(main); li.appendChild(line);
       r.paint=function(){
-        act.textContent=''; var old=ans.querySelector('.mark'); if(old) old.remove();
-        if(d.stale&&d.stale.length){
-          // out of date: no Copy; the mark says why, and the row opens the decision
-          var mk=el('span','mark'); mk.appendChild(staleMark(d.stale)); ans.appendChild(mk);
-        } else act.appendChild(btn('Copy',function(){
-          var f=li.querySelector('.cfail'); if(f) f.remove(); line.textContent='';
-          send(d.id,function(){line.textContent='Copied.'},function(text){failField(line,text)},function(dr,err){
-            if(dr&&!dr.delivered){d.stale=dr.stale; r.paint()}
-            else line.textContent=dr?'Already sent.':err;
-          }).catch(function(e){line.textContent=String(e)});
-        },'soft','copy'));
+        // out of date: the mark says why, the row opens the decision, and Copy leaves it out
+        var old=ans.querySelector('.mark'); if(old) old.remove();
+        if(d.stale&&d.stale.length){var mk=el('span','mark'); mk.appendChild(staleMark(d.stale)); ans.appendChild(mk)}
       };
-      r.paint(); ul.appendChild(li);
+      r.paint(); ul.appendChild(li); rows.push(r);
     });
+    if(open.length){
+      var pc=el('div','pcopy'), pcl=el('span','pline'), b;
+      pcl.setAttribute('aria-live','polite');
+      var ready=function(){return rows.filter(function(r){return !r.done&&!(r.d.stale&&r.d.stale.length)})};
+      b=btn('Copy decision',function(){
+        var rs=ready(), f=s.querySelector('.cfail'); if(f) f.remove(); pcl.textContent='';
+        rows.forEach(function(r){r.line.textContent=''});
+        copyAll(rs.map(function(r){return r.d.id}),function(){pcl.textContent='Copied.'},
+          function(text){failField(pc,text)},
+          function(i,dr,err){var r=rs[i];
+            if(dr&&!dr.delivered){r.d.stale=dr.stale; r.paint()}
+            else{r.done=true; r.line.textContent=dr?'Already sent.':err}
+            copyLabel(b,ready().length)}
+        ).catch(function(e){pcl.textContent=String(e)});
+      },'soft','copy');
+      copyLabel(b,ready().length);
+      pc.appendChild(b); pc.appendChild(pcl); ul.parentNode.insertBefore(pc,ul.nextSibling);
+    }
     var p=s.querySelector('.dsent'); p.hidden=!sent; p.textContent=sent+' already sent.';
   }
 

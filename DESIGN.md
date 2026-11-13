@@ -11,24 +11,24 @@ Note: the pages in `<data>/paredros/review/26c3c765/` were built by the rejected
 ## 1. Answers
 
 1. **"3 or more decisions".** (Revised, decided by the user.) The card shows the exact number of decisions, for example "5 decisions". Briefs have no cap: each list holds every entry that meets the bar, most important first (see 6.2), and the item page shows all of them. There is no "more" count, no "N more not shown" note and no "Show more". *Reason: say the number you know, and hide nothing.*
-2. **Unsaved choice, blur, Save, Undo/Redo.** A selection stays until you change it. Blur, scrolling or clicking elsewhere never clears it (as today). An unsaved selection lasts while the page is open; it is not stored, and leaving the page asks nothing. There is no single Save for all items, because each decision is a separate approval with its own facts and its own stale check. Saving several at once would approve things you have not looked at, and the button would sit far from the choices. There are no Undo/Redo buttons on the card either. Undo already follows Save in the same line, choosing again is one click, and the text field keeps its own Ctrl+Z. One fix to Undo: it removes the saved draft and leaves your answer selected but unsaved, so it returns you to the moment before Save instead of clearing your choice. *Reason: one approval per decision, saved where you chose it; nothing is lost silently.*
+2. **Unsaved choice, blur, Save, Undo/Redo.** A selection stays until you change it. Blur, scrolling or clicking elsewhere never clears it (as today). An unsaved selection lasts while the page is open; it is not stored, and leaving the page asks nothing. There is no single Save for all items, because each decision is a separate approval with its own facts and its own stale check. Saving several at once would approve things you have not looked at, and the button would sit far from the choices. There are no Undo/Redo buttons on the card either. Discard follows Save in the same line: it removes the saved draft and leaves your answer selected but unsaved, so it returns you to the moment before Save instead of clearing your choice. Choosing again is one click, and the text field keeps its own Ctrl+Z. (It was called Undo; but Undo reverses the previous action, and after a Copy that is not the Save it removed. A decision that already reached the session cannot be discarded: the session has the answer.) *Reason: one approval per decision, saved where you chose it; nothing is lost silently.*
 3. **Home button.** No house icon. "‹ All items" at the leading edge of the top bar is the home link, drawn as a back button: a chevron plus the destination, as in macOS and iOS. A house icon would say "start of a website" and would add a second symbol for the same place. *Reason: this page is one level down, and a back button says exactly that.*
 4. **"Ask the companion".** The floating button becomes **[speech-bubble icon] Ask**. The chat sheet's title becomes "Chat". "Companion" appears nowhere on the pages. The selection popover keeps **[bubble] Ask about this**. The earlier plain "Ask" failed because it had no icon. With the bubble, the button reads as a chat control at a glance. *Reason: one short verb plus a familiar symbol.*
 5. **Previous/Next.** (Revised, approved by the user.) The top of an item page holds only the way out, "‹ All items". There is no visible Previous or Next control at the top, and no Previous anywhere: you move on from the end of a page, where the Next item row names the next item (answer 6). Alt+Left and Alt+Right still go to the previous and next item. *Reason: one way out at the top, one way on at the bottom; nothing to read past before the title.*
 6. **The bottom "Next: #N" link.** It is for moving on once you have finished reading, which is the right job, but "#50" says nothing. Replace it with a full-width row: "Next item" above the next item's number and title, with a chevron. On the last item the row reads "All items". There is no back-to-top button: the Home key and the top bar already cover that, and a floating button would sit over content. *Reason: at the end of a page you want the next thing, and its title tells you what it is.*
 7. **"nimony, read 2026-11-09 17:57".** It stays at the bottom of the index and becomes "Nimony, updated 17:57" (the project's directory name; date added only when not today). It is status, not content. Mail puts "Updated just now" at the foot of a list too, and when served the board is rebuilt on each visit anyway. *Reason: keep the title clean; the line is there when you look for it.*
 8. **The repeated label on "Your decisions".** Rows start with the answer itself, with no "You chose:" or "My decision:" prefix: the strip's heading already says whose they are. Line two is the item number and the question, in grey, and links to that decision. The draft id and "(approved by me)" are not shown; they stay in the copied text, which the session needs. *Reason: say it once.*
-9. **One more improvement.** **Chat bubbles show the button you pressed** ("Explain the options", "Grill me", the compare button), not the long prompt behind it. (Copy all on the strip and the cards' countdown were tried and dropped to keep the pages simple: each decision is copied with one click, and a card always shows its exact number of decisions.)
+9. **One more improvement.** **Chat bubbles show the button you pressed** ("Explain the options", "Grill me", the compare button), not the long prompt behind it. (The cards' countdown was tried and dropped: a card always shows its exact number of decisions. Copy all was dropped too and came back: copying each decision on its own meant one paste into the session per decision, so the page and the strip each have one Copy for all saved, current decisions. Each decision is still saved on its own.)
 
 10. **Work items instead of bug reports.** (Added when paredros became generic.) A page is one work item of any Claude Code session: a bug fixed, a module ported, a feature. So the words follow: the index is "Work items", the eyebrow "Item #63", the way out "‹ All items", the end row "Next item". The stale reason says "The code changed" (not "the fix"). The compare button and the Spec lines appear only when the project's config asks for them. Everything else stays as it is. *Reason: the pages describe the work, whatever kind it is.*
 
-Two things are replaced: the "Next: #N" link (its job moves to the Next item row) and "Ask the companion" (now "Ask"). Dropped later, by decision: Copy all, the card countdown, the remembered unsaved choice and the "more" note.
+Two things are replaced: the "Next: #N" link (its job moves to the Next item row) and "Ask the companion" (now "Ask"). Dropped later, by decision: the card countdown, the remembered unsaved choice and the "more" note.
 
 ---
 
 ## 2. Principles
 
-1. **The decision is the point.** Each decision has one filled button (Save decision), and the next step after it (Copy) is the most visible control on that line. Everything else supports these two.
+1. **The decision is the point.** Each decision has one filled button (Save decision, or Save again when the saved answer is out of date). The next step, one Copy for all saved decisions, sits once below them. Everything else supports these two.
 2. **Same place, every time.** Fixed lanes, fixed sections, fixed order. An empty one stays where it is and shows 0. A control's line keeps its height when its state changes.
 3. **Say it once.** A fact is shown once, in one form: a lane colour, a word or a control, never several at once.
 4. **Depth from tone, not lines.** Page, surface and the floating material are three tone steps. Hairlines are neutral and appear only between short rows of one group; large blocks, such as decisions, are separate groups with page between them. Colour comes only from the lanes, the one blue tint, and the diff.
@@ -148,12 +148,13 @@ Desktop, max 72rem, gutter 24                                   --page
 |                                                            (32)     |
 | Your decisions                                                      |  served, only when drafts exist
 | +----------------------------------------------------------------+ |  --surface, r14
-| | Ignore order, document it on the alias                 [⧉ Copy]| |  answer: body 500
+| | Ignore order, document it on the alias                         | |  answer: body 500
 | | #63  Once Table gets ==, should OrderedTable compare order…     | |  ink2, 2 lines max, links to the decision
 | |   ------------------------------------------------------------  | |  hairline starts at the text
-| | Keep it                                                [⧉ Copy]| |
+| | Keep it                                                        | |
 | | #63  Should system's field-wise == keep comparing private…      | |
 | +----------------------------------------------------------------+ |
+| [⧉ Copy 2 decisions]  Copied.                            soft        |  16 below; current rows only
 |   1 already sent.                                         footnote  |
 |                                                            (52)     |
 | Waiting for your decision  4                                        |
@@ -176,7 +177,7 @@ Desktop, max 72rem, gutter 24                                   --page
 +--------------------------------------------------------------------+
 
 Phone (<640): gutter 16, one card per row (grid minmax 15rem), gap 12.
-A strip row stacks: answer / #63 question / [⧉ Copy] on its own line.
+A strip row stacks: answer / #63 question.
                                    [bubble Ask]   floating, served only, 16 from the corner
 ```
 
@@ -213,6 +214,7 @@ Desktop: one column of 44rem, centred; phone: full width, gutter 16
 | +--------------------------------------------+ |
 |   No Spec line means the spec says nothing on  |  footnote, only if one lacks a Spec line
 |   it.                                          |
+| [⧉ Copy 2 decisions]  Copied.                  |  soft, 16 below; saved and current only
 |                                          (56)  |
 | Contradicts the spec  0                        |  empty: ink2, 28 below
 | Needs another review  2                        |
@@ -295,9 +297,9 @@ Button styles. There are only three.
 
 | Style | Look | Used for |
 |---|---|---|
-| Filled | `--tint-fill`, `--on-tint`, 600 15px, r12 (decision) or r10, 44 high, padding 0 18 | Save decision, Send, the Ask about this popover |
+| Filled | `--tint-fill`, `--on-tint`, 600 15px, r12 (decision) or r10, 44 high, padding 0 18 | Save decision, Save again, Send, the Ask about this popover |
 | Soft | `--tint-soft`, `--tint` text, 600 15px, r12, icon gap 8 | Copy, the compare button |
-| Text | `--tint` text, 500 15px, no fill; hover `--hover` fill or underline | Undo, Cancel, Save again, Explain the options, Grill me, nav links |
+| Text | `--tint` text, 500 15px, no fill; hover `--hover` fill or underline | Discard, Cancel, Explain the options, Grill me, nav links |
 
 The floating Ask uses its own capsule: `--material`, `--tint` text, a `--sep` hairline, r22.
 
@@ -340,19 +342,18 @@ Hidden when there are no drafts. Anatomy:
 - The heading "Your decisions".
 - One `--surface` group, r14. Each row is one target that opens its decision (`i63.html#q63-<did>`); hover fills it with `--hover`. Each row holds:
   - the answer (17/500 `--ink`, wraps in full);
-  - "#63  " followed by the question (15 `--ink2`, 2-line clamp);
-  - a trailing soft "Copy" button with the copy icon. On a phone it moves to its own line.
-- Build: the question line is the row's only link, and its `::after` is stretched over the row (`position:absolute; inset:0`), so the link's name is "#63 <question>" and its focus ring (inset 3px) outlines the row. Copy, the message line and a copy-failed field sit above it (`position:relative; z-index:1`), so they are siblings of the link, never inside it: no button nested in a link. Hovering Copy does not fill the row.
-- Below the group: "N already sent." (13 `--ink2`), when there are any.
+  - "#63  " followed by the question (15 `--ink2`, 2-line clamp).
+- Build: the question line is the row's only link, and its `::after` is stretched over the row (`position:absolute; inset:0`), so the link's name is "#63 <question>" and its focus ring (inset 3px) outlines the row. The row's message line and a copy-failed field sit above it (`position:relative; z-index:1`).
+- Below the group, 16 down: one soft Copy with the copy icon, "Copy decision" or "Copy 3 decisions", for every row that is not out of date; dimmed when there is none. "Copied." follows it.
+- Then "N already sent." (13 `--ink2`), when there are any.
 
 | Row state | Shows |
 |---|---|
-| Ready | answer, question link, Copy |
-| Copied | the button stays; the line under it reads "Copied." |
-| Stale (known from `/drafts`) | the mark "Out of date" after the answer (like "Suggested"), and no Copy button: the answer can't be sent as it stands, and the row already opens the decision to save again. The reason is in the mark's tooltip and screen-reader text. |
-| Copy failed | the exact text appears in a read-only, preselected field under the row, with "Copy failed. Press Ctrl+C." |
+| Ready | answer, question link; counted by Copy |
+| Stale (known from `/drafts`) | the mark "Out of date" after the answer (like "Suggested"); Copy leaves it out: the answer can't be sent as it stands, and the row already opens the decision to save again. The reason is in the mark's tooltip and screen-reader text. |
+| Sent meanwhile | the row's line reads "Already sent."; Copy leaves it out |
 
-Copy runs `/send`, which re-checks the draft first: it refuses a draft that already reached the session or whose facts changed.
+Copy runs `/send` for each row first, which refuses a draft that already reached the session or whose facts changed; what may go is copied as one text, one decision per paragraph. If the clipboard fails, that text appears in a read-only, preselected field below the button, with "Copy failed. Press Ctrl+C."
 
 ### 5.5 Item header
 
@@ -396,18 +397,17 @@ State line, by state:
 | Nothing chosen | [Save decision] dimmed (`--fill`, `--ink2`) | enabled |
 | Chosen, not saved | [Save decision] enabled | selected one checked |
 | Saving failed | "Not saved. <error>" then [Save decision] | unchanged |
-| Saved | ✓ "Saved." · [⧉ Copy] · Undo | saved one checked |
-| Copied | ✓ "Copied." · [⧉ Copy] · Undo | unchanged |
-| Copy failed | "Copy failed. Press Ctrl+C." with the exact text in a preselected read-only field below | unchanged |
+| Saved | ✓ "Saved." · Discard | saved one checked |
 | Saved, then another answer chosen | [Save decision] · Cancel (Cancel goes back to the saved answer) | new one checked |
-| Stale | Save again · Undo (no sentence) | saved one checked, with the mark "Out of date" at its trailing edge where "Suggested" sits (both can show: "Suggested · Out of date"). The reason ("The code changed" / "New evidence") is its tooltip and screen-reader text. |
+| Stale | [Save again] · Discard (no sentence) | saved one checked, with the mark "Out of date" at its trailing edge where "Suggested" sits (both can show: "Suggested · Out of date"). The reason ("The code changed" / "New evidence") is its tooltip and screen-reader text. |
 | Sent | ✓ "Sent at 17:57." | locked; the others in `--ink2`; empty own row hidden |
 
 Rules:
 - Only a click, an arrow key or typing changes the selection. Blur never does.
 - Enter in the own-answer field saves (Shift+Enter adds a new line). A trailing full stop is trimmed.
-- Undo removes the draft and keeps the answer selected, unsaved. Save decision is then enabled again.
+- Discard removes the draft and keeps the answer selected, unsaved. Save decision is then enabled again. A sent decision cannot be discarded.
 - Save again re-saves the same answer, which records today's facts.
+- Below the last decision, 16 down: one soft Copy with the copy icon, "Copy decision" or "Copy 3 decisions", for every decision that is saved, current and not sent; dimmed when there is none, hidden once all are sent. It works as the strip's Copy (5.4): one re-check per decision, one text, one paste.
 - An unsaved selection is not stored: it lasts while the page is open.
 - Save records the code tip and the brief the page showed (`data-ref`, `data-brief`), so a decision is checked against what you saw.
 
@@ -451,7 +451,7 @@ On the last item the row reads only "All items ›" and links to the index.
 | Index title | Work items |
 | No items yet | No work items yet. Run `paredros brief`. |
 | Strip heading | Your decisions |
-| Strip button | Copy |
+| Copy (page and strip) | Copy decision · Copy 3 decisions |
 | Strip row | `<answer>` / `#63  <question>` |
 | Strip copied | Copied. · Already sent. (sent meanwhile) |
 | Stale mark (decision and strip) | Out of date |
@@ -470,7 +470,7 @@ On the last item the row reads only "All items ›" and links to the index.
 | Code count | 1 file · 3 files |
 | Option mark | Suggested |
 | Own answer | Type your answer (placeholder) · Your own answer (label) |
-| State line | Save decision · Cancel · Saved. · Copy · Undo · Save again |
+| State line | Save decision · Cancel · Saved. · Discard · Save again |
 | Copied | Copied. |
 | Sent | Sent at 17:57. |
 | Error | Not saved. `<error>` |
@@ -540,5 +540,5 @@ Accessibility:
 7. Every colour, size, spacing value, radius and duration comes from section 3. A new one goes into section 3 first, with a light and a dark value.
 8. Motion only answers an action, and is off under reduced motion.
 9. Staleness is only the mark "Out of date" (styled as "Suggested"), never a sentence, never gold, amber or red.
-10. Before merging, check both modes at 360px and desktop width, a keyboard-only pass over one decision (choose, type, Save, Copy, Undo, Cancel, Save again), an empty section, an empty lane, an item without a brief, the last item's end row, and file mode (no server).
+10. Before merging, check both modes at 360px and desktop width, a keyboard-only pass over one decision (choose, type, Save, Discard, Cancel, Save again) and the page's Copy, an empty section, an empty lane, an item without a brief, the last item's end row, and file mode (no server).
 11. Index cards stay in item-number order within each lane, in one aligned grid, all the same size.
