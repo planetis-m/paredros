@@ -50,7 +50,7 @@ block a_draft_is_a_record_and_its_text_is_derived:
     else: discard
   assert keys == @["item", "did", "question", "option", "code", "brief"], "the record's keys"
   assert dr.get(Draft()).text == "Q with a line?\nMy decision: Yes. (d2, approved by me)"
-  let w = withdraw(Sid, "d2")
+  let w = withdraw(Sid, spathOf(Sid), "d2")
   assert w.isOk and w.get(false), "withdrawn"
   assert fileExists(d & "/d2.withdrawn"), "kept as d2.withdrawn"
   let again = decide(Sid, spathOf(Sid), 7, "abc", "Q?", "No")
@@ -58,8 +58,8 @@ block a_draft_is_a_record_and_its_text_is_derived:
   # bad input is an error, not an exception
   assert decide(Sid, spathOf(Sid), 7, "a-b", "Q?", "No").error("") == "bad decision id"
   assert decide(Sid, spathOf(Sid), 7, "", "Q?", "No").error("") == "bad decision id"
-  assert withdraw(Sid, "../x").error("") == "bad draft id"
-  assert withdraw(Sid, "d9").get(true) == false, "no such draft: nothing withdrawn"
+  assert withdraw(Sid, spathOf(Sid), "../x").error("") == "bad draft id"
+  assert withdraw(Sid, spathOf(Sid), "d9").get(true) == false, "no such draft: nothing withdrawn"
 
 block decisions_draft_stale_and_delivered:
   resetState()
@@ -91,6 +91,9 @@ block decisions_draft_stale_and_delivered:
   assert st.stale.len == 0, "a delivered draft is never stale"
   let sent = check(Sid, spath, dr.id).get(Verdict())
   assert sent.why.get("") == "already sent to the session at 2026-11-09T09:00"
+  assert withdraw(Sid, spath, dr.id).error("") == "already sent to the session",
+    "Undo after pasting keeps the draft: the session has the answer"
+  assert stateOf(Sid, spath, dr.id).delivered.isSome, "still shown as sent"
   let none = check(Sid, spath, "d99").get(Verdict())
   assert none.draft.isNone and none.why.get("") == "no such draft"
   # a decision delivered is done: deciding it again makes a new draft

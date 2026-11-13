@@ -179,8 +179,11 @@
   }
   function say(st,kind,text){var m=st.querySelector('.msg'), n=msg(kind,text); if(m) st.replaceChild(n,m); else st.insertBefore(n,st.firstChild)}
   function undo(li){   // the draft goes; your answer stays selected, unsaved
-    api('/withdraw',{id:li._dr.id}).then(function(){
-      li._dr=null; li.dataset.saved=''; li.dataset.savedown=''; render(li)});
+    api('/withdraw',{id:li._dr.id}).then(function(j){
+      if(j.draft){paint(li,j.draft); return}   // already sent: it stays, shown as sent
+      if(j.error){li._err=j.error; render(li); return}
+      li._dr=null; li.dataset.saved=''; li.dataset.savedown=''; render(li)
+    }).catch(function(e){li._err=String(e); render(li)});
   }
   function restore(li){   // the selection goes back to what is saved
     var o=own(li), dr=li._dr, known=dr&&[].some.call(li.querySelectorAll('.opt'),function(b){return b.dataset.opt===dr.option});

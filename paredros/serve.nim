@@ -306,8 +306,14 @@ proc act(s: Server; path, body: string): Reply =
     result = json(200, "{\"id\": " & quote(dr.get(Draft()).id) & ", \"text\": " &
                        quote(dr.get(Draft()).text) & "}")
   of "/withdraw":
-    let w = withdraw(s.sid, q{"id"}.getStr)
-    if w.isErr: return failed(w.error(""))
+    let w = withdraw(s.sid, s.spath, q{"id"}.getStr)
+    if w.isErr:
+      # refused because it reached the session: the page repaints it as sent
+      let c = check(s.sid, s.spath, q{"id"}.getStr)
+      if c.isOk and c.get(Verdict()).draft.isSome:
+        return json(409, "{\"draft\": " & draftJson(c.get(Verdict()).draft.get(DraftState())) &
+                         ", \"error\": " & quote(w.error("")) & "}")
+      return failed(w.error(""))
     result = json(200, "{\"ok\": true}")
   of "/send":
     # the one re-check; every answer carries the draft's state

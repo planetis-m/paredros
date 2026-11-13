@@ -152,11 +152,14 @@ block copy_makes_the_same_checks_as_send:
   assert post("/decide", "{\"item\": 7, \"did\": \"x\\n- code 7 y\", \"question\": " & quote(q) &
               ", \"option\": \"Yes\"}").status == 500, "a forged decision id"
   assert post("/withdraw", "{\"id\": \"../../x\"}").status == 500, "a forged draft id"
+  r = post("/withdraw", "{\"id\": " & quote(id) & "}")
+  assert r.status == 409 and "\"delivered\": \"2026-11-09T09:00" in r.body,
+    "Undo after pasting is refused; the page repaints it as sent: " & r.body
+  writeText(spath, before)   # not pasted after all
   assert post("/withdraw", "{\"id\": " & quote(id) & "}").status == 200, "Undo"
   r = post("/decide", "{\"item\": 7, \"did\": \"other\", \"question\": " & quote(q) &
            ", \"option\": \"No\"}")
   assert idOf(r.body) != id, "Undo never frees a number"
-  writeText(spath, before)
 
 block the_question_carries_the_pages_brief:
   try:

@@ -154,14 +154,21 @@ proc decide*(sid, spath: string; item: int; did, question, option: string; code 
     return err[Draft, string]("cannot write " & p)
   result = readDraft(p)
 
-proc withdraw*(sid, name: string): Result[bool, string] =
+proc withdraw*(sid, spath, name: string): Result[bool, string] =
   ## Undo: draft `name` becomes d<N>.withdrawn, so its number is never
-  ## reused. True when there was such a draft. The error says the id is bad
-  ## or the file cannot be renamed.
+  ## reused. True when there was such a draft. The error says the id is bad,
+  ## the draft already reached the session (it has the answer, so the draft
+  ## stays), or the file cannot be renamed.
   if number(name) < 0: return err[bool, string]("bad draft id")
   let p = state("directions", sid) & "/" & name
   result = ok[bool, string](false)
   if fileExists(p & ".json"):
+    let all = allDrafts(sid)
+    if all.isErr: return err[bool, string](all.error(""))
+    let recs = readJsonl(spath)
+    for dr in all.get(@[]):
+      if dr.id == name and deliveredAt(dr, recs).isSome:
+        return err[bool, string]("already sent to the session")
     try:
       moveFile(path(p & ".json"), path(p & ".withdrawn"))
       result = ok[bool, string](true)
