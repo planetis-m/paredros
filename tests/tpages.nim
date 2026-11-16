@@ -111,10 +111,11 @@ block briefs_and_pages_hold_every_entry:
   let b = parsed("""{"summary": "s", "open_decisions": [""" & qs.join(", ") &
                  """], "bug_risks": [""" & risks.join(", ") & """], "more": {"bug_risks": 2}}""")
   assert b.lists[BugRisks].len == 5 and b.lists[OpenDecisions].len == 4, "no cap"
-  let r = WorkItem(n: 63, title: "T")
-  assert "<span class=\"sub\">4 decisions</span>" in $card(r, some(b), "decide"), "the exact count"
-  assert "<span class=\"sub\">No brief yet</span>" in $card(r, none[Brief](), "review")
-  assert "<span class=\"sub\"></span>" in $card(r, some(b), "clear")
+  let noBrief = WorkItem(n: 63, title: "T")
+  let r = WorkItem(n: 63, title: "T", cached: some(Cached(brief: b)))
+  assert "<span class=\"sub\">4 decisions</span>" in $card(r, "decide"), "the exact count"
+  assert "<span class=\"sub\">No brief yet</span>" in $card(noBrief, "review")
+  assert "<span class=\"sub\"></span>" in $card(r, "clear")
   let cfg = config.load(tmp() & "/nowhere").get(Config())
   let s = $sectionHtml("bug_risks", "Could cause more bugs", 5,
                        itemsHtml("bug_risks", b.lists[BugRisks], cfg))

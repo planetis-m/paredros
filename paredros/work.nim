@@ -240,7 +240,7 @@ proc collect*(spath: string; cfg: Config; src: Sources; diff = true): Result[Wor
   for i, c in src.commits: byKey[c.key] = ('c', i)
   var items: seq[WorkItem] = @[]
   for it in led.get(Ledger()).items:
-    var r = WorkItem(n: it.id, title: it.title, brief: none[Brief](), inputs: "", turns: @[],
+    var r = WorkItem(n: it.id, title: it.title, cached: none[Cached](), turns: @[],
                      agents: @[], code: Code(commits: @[], earlier: @[], tip: "", diff: ""))
     var cms: seq[Commit] = @[]
     for k in it.sources:
@@ -250,10 +250,7 @@ proc collect*(spath: string; cfg: Config; src: Sources; diff = true): Result[Wor
         of 't': r.turns.add src.turns[i]
         of 'a': r.agents.add src.agents[i]
         else: cms.add src.commits[i]
-    let cached = load(sid, it.id)
-    if cached.isSome:
-      r.brief = some(cached.get(Cached()).brief)
-      r.inputs = cached.get(Cached()).inputs
+    r.cached = load(sid, it.id)
     if cms.len > 0: r.code = currentCode(cms, diff)
     items.add r
   let top = git(src.cwd, ["rev-parse", "--show-toplevel"]).get("")

@@ -217,12 +217,12 @@ proc itemPage(r: WorkItem; d: Work; prev, next: Opt[int];
   ## only the code is wider.
   let cfg = d.config
   var sections: seq[Html] = @[]
-  if r.brief.isSome:
-    let b = r.brief.get(Brief())
+  if r.cached.isSome:
+    let c = r.cached.get(Cached())
     for s in Section:
       let (key, heading) = Sections[s]
-      sections.add sectionHtml(key, heading, b.lists[s].len,
-                               itemsHtml(key, b.lists[s], cfg, some(r.n), r.code.tip, r.inputs))
+      sections.add sectionHtml(key, heading, c.brief.lists[s].len,
+                               itemsHtml(key, c.brief.lists[s], cfg, some(r.n), r.code.tip, c.inputs))
   let (diff, files) = render.diff(r.code.diff)
   let sz = size(r.code.diff)
   let code = if files > 0: sectionHtml("code", "The code", files, diff, plural(files, "file"))
@@ -257,8 +257,9 @@ proc itemPage(r: WorkItem; d: Work; prev, next: Opt[int];
                tag("button", [attr("class", "soft"), attr("type", "button"),
                               attr("data-ask", expand(cmp.prompt, state("scratch", d.session))),
                               attr("hidden", true)], bubble, cmp.label))
-  let summary = if r.brief.isSome:
-                  tag("p", [attr("class", "summary")], inline(r.brief.get(Brief()).summary))
+  let summary = if r.cached.isSome:
+                  tag("p", [attr("class", "summary")],
+                      inline(r.cached.get(Cached()).brief.summary))
                 else: tag("p", [attr("class", "summary nobrief")], "No brief yet. Run ",
                           tag("code", [], "paredros brief " & $r.n), ".")
   let body = join([tag("nav", [attr("class", "top"), attr("aria-label", "Items")],
@@ -284,12 +285,13 @@ proc lane*(b: Brief): string =
            elif b.lists[SpecConflicts].len > 0 or b.lists[NeedsReview].len > 0: "review"
            else: "clear"
 
-proc card*(r: WorkItem; b: Opt[Brief]; lane: string): Html =
+proc card*(r: WorkItem; lane: string): Html =
   ## One link per item: number, title, and only in the decision lane the exact
   ## number of decisions. Every card keeps the line's space, so all are one
   ## height.
-  let sub = if b.isNone: "No brief yet"
-            elif lane == "decide": plural(b.get(Brief()).lists[OpenDecisions].len, "decision")
+  let sub = if r.cached.isNone: "No brief yet"
+            elif lane == "decide":
+              plural(r.cached.get(Cached()).brief.lists[OpenDecisions].len, "decision")
             else: ""
   result = tag("li", [], tag("a", [attr("class", "card"), attr("href", "i" & $r.n & ".html")],
                              tag("span", [attr("class", "no")], "#" & $r.n),
@@ -322,8 +324,8 @@ proc indexPage(d: Work): Html =
     var cards: seq[Html] = @[]
     for r in reps:
       # no brief yet: it needs reading first
-      let at = if r.brief.isNone: "review" else: lane(r.brief.get(Brief()))
-      if at == key: cards.add card(r, r.brief, key)
+      let at = if r.cached.isNone: "review" else: lane(r.cached.get(Cached()).brief)
+      if at == key: cards.add card(r, key)
     board.add tag("section", [attr("class", "lane lane-" & key & (if cards.len > 0: "" else: " z")),
                               attr("aria-labelledby", "lane-" & key)],
                   tag("div", [attr("class", "sh")], tag("h2", [attr("id", "lane-" & key)], title),

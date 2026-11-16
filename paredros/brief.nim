@@ -221,8 +221,7 @@ type
     ## A work item with its sources and its cached brief.
     n*: int                ## its number in the ledger
     title*: string
-    brief*: Opt[Brief]     ## none until one is written
-    inputs*: string        ## the hash the cached brief was written from; "" for none
+    cached*: Opt[Cached]   ## none until a brief is written
     turns*: seq[Turn]
     agents*: seq[Worker]
     code*: Code

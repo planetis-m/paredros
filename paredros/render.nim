@@ -28,11 +28,15 @@ import state
 type
   Html* = distinct string
     ## Markup built from escaped parts; inserted as is.
+  AttrKind = enum
+    akOmit    ## left out
+    akBare    ## the name alone
+    akValued  ## name="value"
   Attr* = object
     ## One attribute of a tag: `name="value"`, the name alone, or nothing.
     name: string
-    value: Opt[string]   # none: left out
-    bare: bool           # written as its name alone
+    kind: AttrKind
+    value: string        # read only when kind is akValued
 
 proc `$`*(h: Html): string =
   ## The markup as a string.
@@ -74,19 +78,19 @@ proc toHtml*(parts: openArray[Html]): Html =
 
 proc attr*(name, value: string): Attr =
   ## `name="value"`, the value escaped.
-  Attr(name: name, value: some(value), bare: false)
+  Attr(name: name, kind: akValued, value: value)
 
 proc attr*(name: string; value: int): Attr =
   ## `name="value"` for a number.
-  Attr(name: name, value: some($value), bare: false)
+  attr(name, $value)
 
 proc attr*(name: string; value: Opt[string]): Attr =
   ## `name="value"`, or nothing when the value is none.
-  Attr(name: name, value: value, bare: false)
+  if value.isSome: attr(name, value.get("")) else: Attr(name: name, kind: akOmit)
 
 proc attr*(name: string; on: bool): Attr =
   ## The name alone (`hidden`) when on, else nothing.
-  Attr(name: name, value: (if on: some("") else: none[string]()), bare: on)
+  Attr(name: name, kind: (if on: akBare else: akOmit))
 
 const Void = ["br", "hr", "img", "input", "link", "meta"]
 
@@ -95,8 +99,10 @@ proc tag*(name: string; attrs: openArray[Attr] = []; children: varargs[Html, toH
   ## escaped; an element in `Void` has no children and no end tag.
   var s = "<" & name
   for a in attrs:
-    if a.bare: s.add " " & a.name
-    elif a.value.isSome: s.add " " & a.name & "=\"" & esc(a.value.get("")) & "\""
+    case a.kind
+    of akBare: s.add " " & a.name
+    of akValued: s.add " " & a.name & "=\"" & esc(a.value) & "\""
+    of akOmit: discard
   s.add ">"
   if name notin Void:
     for c in children: s.add string(c)
