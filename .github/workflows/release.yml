@@ -29,7 +29,7 @@ permissions:
 env:
   NIMONY_REPO: https://github.com/nim-lang/nimony
   # A commit on nim-lang/nimony master; the fetch fails if it ever becomes unreachable.
-  NIMONY_COMMIT: 4ba90a781b0b22d0821efaa153c129c37cef6143
+  NIMONY_COMMIT: 1a136fec4a74b0ff23331475b9a2634255fbdba4
 
 jobs:
   build:
