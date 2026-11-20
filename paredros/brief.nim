@@ -259,6 +259,10 @@ proc promptFor*(cfg: Config; sources: string): string =
 
 # --------------------------------------------------------------------- model
 
+const Lenient = JsonOptions(allowMissingKeys: true, allowExtraKeys: true)
+  # std/json's fromJson for the model's answers and the brief cache: a key
+  # left out keeps its field's default, an unknown one is passed over.
+
 proc askModel*(prompt, cwd, model, schema: string; timeout = 900): Result[JsonNode, string] =
   ## One read-only `claude -p` run; its answer, the object in the given JSON
   ## schema (structured_output). The error says why there is none.
@@ -312,6 +316,10 @@ type
     ## The work items and what is sorted.
     items*: seq[LedgerItem]    ## by id
     seen*: Table[string, int]  ## every key sorted, with its fingerprint
+  LedgerItems = object
+    # The ledger file's items, for std/json's fromJson; its seen is a Table,
+    # which std/json does not read.
+    items: seq[LedgerItem]
 
 proc ledgerPath*(sid: string): string =
   ## The ledger's file.
@@ -330,31 +338,19 @@ proc loadLedger*(sid: string): Result[Ledger, string] =
   except ErrorCode as e:
     return err[Ledger, string]("cannot read the work items in " & p & " (" & $e &
                                "); it is left as it is")
+  var led = Ledger(items: @[], seen: initTable[string, int]())
   var tree = parseJson(text)
+  if not tree.hasError:
+    try:
+      led.items = fromJson(tree, LedgerItems, JsonOptions(allowExtraKeys: true)).items
+    except:
+      discard   # tree.errorMsg says why
   if tree.hasError:
     return err[Ledger, string]("cannot read the work items in " & p & " (" & tree.errorMsg &
                                "); it is left as it is")
-  let top = tree.root
-  var list, seen = top   # the members; top itself until they are found
-  if top.kind == JObject:
-    for k, v in pairs(top):
-      if k == "items": list = v
-      elif k == "seen": seen = v
-  if top.kind != JObject or list.kind != JArray or seen.kind != JObject:
+  let seen = tree{"seen"}
+  if seen.kind != JObject:
     return err[Ledger, string](p & " does not hold work items; it is left as it is")
-  var led = Ledger(items: @[], seen: initTable[string, int]())
-  for it in items(list):
-    var item = LedgerItem(id: 0, title: "", sources: @[])
-    if it.kind == JObject:
-      for k, v in pairs(it):
-        case k
-        of "id": item.id = int(v.getInt)
-        of "title": item.title = v.getStr
-        of "sources":
-          if v.kind == JArray:
-            for s in items(v): item.sources.add s.getStr
-        else: discard
-    led.items.add item
   for k, v in pairs(seen):
     # a fingerprint that is not a number matches none: the source is sorted again
     led.seen[k] = int(v.getInt(-1))
@@ -379,11 +375,17 @@ proc fingerprint(key: string; texts: seq[string]): int =
   if key.startsWith("turn:"):
     for t in texts: result += runeLen(t)
 
-type Offer = object
-  ## A source offered to the split.
-  key: string
-  fingerprint: int
-  line: string        # how the prompt shows it
+type
+  Offer = object
+    ## A source offered to the split.
+    key: string
+    fingerprint: int
+    line: string        # how the prompt shows it
+  SplitAnswer = object
+    # The split's answer (SplitSchema), for std/json's fromJson: its items'
+    # sources are handles, not keys.
+    items: seq[LedgerItem]
+    housekeeping: seq[string]
 
 proc split*(sid: string; src: Sources; model = "opus"): Result[Ledger, string] =
   ## Sorts the session's new material (work.sources) into the ledger's items
@@ -441,44 +443,33 @@ proc split*(sid: string; src: Sources; model = "opus"): Result[Ledger, string] =
                                            ("{material}", "Material:\n" & lines.join("\n"))]),
                        src.cwd, model, SplitSchema)
   if asked.isErr: return err[Ledger, string](asked.error(""))
-  let answer = asked.get(default(JsonNode))
+  var answer = asked.get(default(JsonNode))
+  var opts = Lenient
+  var got = SplitAnswer(items: @[], housekeeping: @[])
+  try:
+    got = fromJson(answer, SplitAnswer, opts)
+  except:
+    return err[Ledger, string]("the answer is not in the schema")
   var byHandle = initTable[string, string]()
   for k, h in pairs(handle): byHandle[h] = k
   var taken: seq[string] = @[]   # agents and commits in an item
   for it in led.items:
     for k in it.sources:
       if not k.startsWith("turn:"): taken.add k
-  var housekeeping: seq[string] = @[]
-  var got: seq[JsonNode] = @[]
-  for k, v in pairs(answer):
-    if k == "items" and v.kind == JArray:
-      for x in items(v): got.add x
-    elif k == "housekeeping" and v.kind == JArray:
-      for h in items(v): housekeeping.add h.getStr
-  for g in got:
-    var id = 0
-    var title = ""
+  for g in got.items:
     var keys: seq[string] = @[]
-    if g.kind == JObject:
-      for k, v in pairs(g):
-        case k
-        of "id": id = int(v.getInt)
-        of "title": title = v.getStr
-        of "sources":
-          if v.kind == JArray:
-            for h in items(v):
-              # handles only: no made-up keys
-              let key = byHandle.getOrDefault(h.getStr, "")
-              if key.len > 0 and (key.startsWith("turn:") or key notin taken): keys.add key
-        else: discard
+    for h in g.sources:
+      # handles only: no made-up keys
+      let key = byHandle.getOrDefault(h, "")
+      if key.len > 0 and (key.startsWith("turn:") or key notin taken): keys.add key
     if keys.len > 0:
       var at = -1
       for i, it in led.items:
-        if it.id == id: at = i
+        if it.id == g.id: at = i
       if at < 0:   # numbers come from code: a new item gets the next free one
         var n = 0
         for it in led.items: n = max(n, it.id)
-        let words = collapse(title)
+        let words = collapse(g.title)
         led.items.add LedgerItem(id: n + 1, title: (if words.len > 0: words else: "Untitled work"),
                                  sources: @[])
         at = led.items.high
@@ -491,7 +482,7 @@ proc split*(sid: string; src: Sources; model = "opus"): Result[Ledger, string] =
   # Turns are sorted once. An agent or commit counts as sorted only when the
   # split placed it or called it housekeeping; anything it dropped is offered again.
   var skipped: seq[string] = @[]
-  for h in housekeeping:
+  for h in got.housekeeping:
     if h in byHandle: skipped.add byHandle.getOrDefault(h, "")
   for x in new:
     if x.key.startsWith("turn:") or x.key in taken or x.key in skipped:
@@ -537,56 +528,10 @@ proc cachePath*(sid: string; n: int): string =
   ## The cache file of item n's brief.
   state("briefs", sid) & "/i" & $n & ".json"
 
-proc entry(n: JsonNode): Entry =
-  ## One entry of a brief's list, as the model or the cache wrote it.
-  result = Entry(options: @[], recommended: -1)
-  for k, v in pairs(n):
-    case k
-    of "text": result.text = v.getStr
-    of "why": result.why = v.getStr
-    of "question": result.question = v.getStr
-    of "reason": result.reason = v.getStr
-    of "spec": result.spec = v.getStr
-    of "source": result.source = v.getStr
-    of "recommended":
-      # anything but a number recommends none
-      if v.kind == JInt: result.recommended = int(v.getInt)
-    of "options":
-      if v.kind == JArray:
-        for o in items(v): result.options.add o.getStr
-    else: discard
-
-proc parse*(b: JsonNode): Brief =
-  ## The brief as the page reads it: the summary and the five lists, nothing else.
-  result = Brief(summary: "")
-  if b.kind == JObject:
-    for k, v in pairs(b):
-      if k == "summary": result.summary = v.getStr
-      for s in Section:
-        if k == Sections[s].key and v.kind == JArray:
-          result.lists[s] = @[]
-          for e in items(v):
-            if e.kind == JObject: result.lists[s].add entry(e)
-
-proc load*(sid: string; n: int): Opt[Cached] =
-  ## Item n's cached brief; none when there is none or it cannot be read.
-  let text = try: readFile(cachePath(sid, n)) except: ""
-  var tree = parseJson(text)
-  if tree.hasError or tree.root.kind != JObject: return none[Cached]()
-  var c = Cached(inputs: "", generated: "", model: "", brief: Brief(summary: ""))
-  for k, v in pairs(tree.root):
-    case k
-    of "inputs": c.inputs = v.getStr
-    of "generated": c.generated = v.getStr
-    of "model": c.model = v.getStr
-    of "brief": c.brief = parse(v)
-    else: discard
-  result = some(c)
-
 type
-  # A cached brief as its file holds it, for std/json's toJson: each list's
-  # entries with that list's fields only. The field names are the file's
-  # keys, so they keep the files' snake_case spelling.
+  # A brief as the model writes it and its cache file holds it, for std/json's
+  # toJson and fromJson: each list's entries with that list's fields only. The
+  # field names are the JSON keys, so they keep its snake_case spelling.
   DecisionRecord = object
     question, reason, spec, source: string
     options: seq[string]
@@ -603,6 +548,47 @@ type
   CachedRecord = object
     inputs, generated, model: string
     brief: BriefRecord
+
+proc toBrief(b: BriefRecord): Brief =
+  ## The brief as the page reads it.
+  proc findings(list: seq[FindingRecord]): seq[Entry] =
+    ## A list's findings as entries.
+    result = @[]
+    for f in list: result.add Entry(text: f.text, source: f.source, options: @[], recommended: -1)
+  result = Brief(summary: b.summary)
+  result.lists[SpecConflicts] = findings(b.spec_conflicts)
+  result.lists[NeedsReview] = findings(b.needs_review)
+  result.lists[BugRisks] = findings(b.bug_risks)
+  for d in b.open_decisions:
+    result.lists[OpenDecisions].add Entry(question: d.question, reason: d.reason, spec: d.spec,
+                                          source: d.source, options: d.options,
+                                          recommended: d.recommended)
+  for m in b.decisions_made:
+    result.lists[DecisionsMade].add Entry(text: m.text, why: m.why, source: m.source,
+                                          options: @[], recommended: -1)
+
+proc parse*(b: JsonNode): Opt[Brief] =
+  ## The brief in b, as the model wrote it: the summary and the five lists,
+  ## nothing else; none when b is not one.
+  var c = b
+  var opts = Lenient
+  try:
+    result = some(toBrief(fromJson(c, BriefRecord, opts)))
+  except:
+    result = none[Brief]()
+
+proc load*(sid: string; n: int): Opt[Cached] =
+  ## Item n's cached brief; none when there is none or it cannot be read.
+  let text = try: readFile(cachePath(sid, n)) except: ""
+  var tree = parseJson(text)
+  result = none[Cached]()
+  if not tree.hasError:
+    try:
+      let c = fromJson(tree, CachedRecord, Lenient)
+      result = some(Cached(inputs: c.inputs, generated: c.generated, model: c.model,
+                           brief: toBrief(c.brief)))
+    except:
+      discard
 
 proc cachedJson(c: Cached): string =
   ## A cached brief as its file holds it.
@@ -637,8 +623,10 @@ proc generate(r: WorkItem; d: Work; model = "opus";
   let answer = askModel(prompt, d.repo, model, BriefSchema)
   if answer.isErr: return err[(Cached, bool), string](answer.error(""))
   # local time without its zone, as time.strftime("%Y-%m-%dT%H:%M:%S")
+  let got = parse(answer.get(default(JsonNode)))
+  if got.isNone: return err[(Cached, bool), string]("the answer is not in the schema")
   let brief = Cached(inputs: digest, generated: ($local(getTime())).substr(0, 18), model: model,
-                     brief: parse(answer.get(default(JsonNode))))
+                     brief: got.get(Brief()))
   try:
     writeJson(cachePath(d.session, r.n), cachedJson(brief))
   except ErrorCode as e:

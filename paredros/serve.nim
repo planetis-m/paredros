@@ -281,9 +281,7 @@ proc act(s: Server; path, body: string): Reply =
   ## One of the five POST actions: JSON in, JSON out; a failure is a 500 that
   ## says what went wrong.
   # GAP (every reply): non-ASCII text is written as it is, not \u-escaped,
-  # and control characters other than \b \f \n \r \t raw, because std/json
-  # has no ASCII mode and its `$` does not escape them
-  # (bug-reports/104-json-dollar-control-chars-unescaped; README, Limitations).
+  # because std/json has no ASCII mode (README, Limitations).
   # GAP: why a body is not JSON is said in std/json's words, its only message.
   var q = parseJson(if body.len > 0: body else: "{}")
   if q.hasError: return failed(q.errorMsg)

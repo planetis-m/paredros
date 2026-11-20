@@ -290,9 +290,6 @@ Files and JSON:
   companion's settings) and the server's replies are on one line, not
   indented, with non-ASCII text as it is, not `\u`-escaped. Both are valid
   JSON. std/json has no pretty printer and no ASCII mode.
-- A control character other than `\b \f \n \r \t` in a title, key, brief or
-  reply is written raw, which is not JSON, because std/json's `$` does not
-  escape them (bug-reports/104).
 - Why a config file, a request body or the model's answer is not JSON is
   told in std/json's own message, the only one it gives.
 - Times are read only as `YYYY-MM-DDTHH:MM:SS`, with a fraction, then `Z`,

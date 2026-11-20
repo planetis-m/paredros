@@ -24,7 +24,7 @@ block model_runs_have_only_the_read_tools_and_answer_in_the_schema:
                        """"bug_risks": [{"text": "t", "source": "x"}]}}""")
   let got = askModel("p", tmp(), "opus", BriefSchema)
   assert got.isOk, got.error("")
-  let risks = parse(got.get(default(JsonNode))).lists[BugRisks]
+  let risks = parse(got.get(default(JsonNode))).get(Brief()).lists[BugRisks]
   assert risks.len == 1 and risks[0].text == "t" and risks[0].source == "x", "the answer"
   let argv = argvOf(log, 0)
   assert argv[argv.find("--tools") + 1] == "Read,Grep,Glob", "only the read tools"
@@ -47,7 +47,7 @@ block the_prompt_follows_the_config:
 
 block brief_parse_keeps_known_sections:
   var t = parseJson("""{"summary": "s", "bug_risks": [{"text": "t"}], "extra": 1}""")
-  let b = parse(t.root)
+  let b = parse(t.root).get(Brief())
   assert b.summary == "s" and b.lists[BugRisks].len == 1 and b.lists[BugRisks][0].text == "t"
   assert b.lists[OpenDecisions].len == 0, "a list left out is empty"
 

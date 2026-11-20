@@ -48,9 +48,6 @@ proc collapse*(text: string): string =
 proc quote*[T](value: T): string =
   ## value (a string, a number, a seq or an object of them) as JSON text, on
   ## one line: std/json's `toJson`, then `$`.
-  # GAP: control characters other than \b \f \n \r \t are written raw, which
-  # is not JSON, because std/json's `$` does not escape them
-  # (bug-reports/104-json-dollar-control-chars-unescaped; README, Limitations).
   var t = toJson(value)
   result = $t
 

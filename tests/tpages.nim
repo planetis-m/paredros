@@ -19,7 +19,9 @@ proc parsed(json: string): Brief =
   ## brief.parse of JSON text.
   var t = parseJson(json)
   if t.hasError: quit t.errorMsg
-  result = parse(t.root)
+  let b = parse(t.root)
+  if b.isNone: quit "not a brief: " & json
+  result = b.get(Brief())
 
 proc between(s, a, b: string): string =
   ## The text of s after the first a, up to the next b.
