@@ -175,7 +175,11 @@ proc runBrief*(sid: string; force = false): seq[(int, string)] =
   if led.isErr: quit led.error("")
   let d = collect(spath, cfg.get(defaults()), src)
   if d.isErr: quit d.error("")
-  result = generateAll(d.get(Work()), force = force)
+  # jobs = 1: in-process tests mutate PATH/XDG_DATA_HOME via putEnv, which
+  # std/envvars stores per-thread (planetis-m/nimony-bugs-llms#326: worker
+  # threads read the startup nimEnviron). Parallel --jobs is tested through
+  # bin/paredros in tcli.nim.
+  result = generateAll(d.get(Work()), force = force, jobs = 1)
 
 proc collectNow*(sid: string): Work =
   ## work.collect of the fixture session, read now. An error ends the test run.

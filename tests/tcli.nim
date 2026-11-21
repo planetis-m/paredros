@@ -31,6 +31,19 @@ block the_script_passes_its_config_on:
     "the state it was given"
   try: putEnv("XDG_DATA_HOME", tmp() & "/state") except: quit "cannot set the environment"
 
+block parallel_briefs_run_across_jobs:
+  # bin/paredros inherits the test environment in its startup envp, so parfor
+  # worker threads run fakeclaude in parallel without touching real state.
+  try: putEnv("XDG_DATA_HOME", tmp() & "/par-state") except: quit "cannot set the environment"
+  let log = fake([("Parser accepts empty input", @["C1", "T1"]),
+                  ("Quotes are escaped", @["C2", "T1", "T2"])])
+  let r = paredros(["--session=" & Solo.substr(0, 7), "--jobs=2", "brief"])
+  assert r.code == 0, r.output & r.errors
+  assert r.output == "#1: new item: Parser accepts empty input\n" &
+                     "#2: new item: Quotes are escaped\n#1: written\n#2: written\n", r.output
+  assert prompts(log).len == 3, "the split and both briefs"
+  try: putEnv("XDG_DATA_HOME", tmp() & "/state") except: quit "cannot set the environment"
+
 block errors_end_paredros_with_their_message:
   var r = paredros(["--session=nomatch", "brief"])
   assert r.code == 1 and r.errors == "paredros: no session matches 'nomatch'\n", r.errors

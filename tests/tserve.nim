@@ -137,14 +137,14 @@ block copy_makes_the_same_checks_as_send:
   let id = idOf(r.body)
   r = post("/send", "{\"id\": " & quote(id) & "}")
   assert r.status == 409, "out of date: " & r.body
-  assert "\"stale\": [\"New evidence.\"]" in r.body, "the page repaints from it: " & r.body
+  assert "\"stale\":[\"New evidence.\"]" in r.body, "the page repaints from it: " & r.body
   discard post("/decide", decide & "\"h2\"}")
   r = post("/send", "{\"id\": " & quote(id) & "}")
   var sent = parseJson(r.body)
   assert r.status == 200 and sent{"text"}.getStr.splitLines[0] == q, "copied: " & r.body
   writeText(spath, before & user(sent{"text"}.getStr, "2026-11-09T09:00:00Z") & "\n")  # pasted
   r = post("/send", "{\"id\": " & quote(id) & "}")
-  assert r.status == 409 and "\"delivered\": \"2026-11-09T09:00" in r.body,
+  assert r.status == 409 and "\"delivered\":\"2026-11-09T09:00" in r.body,
     "already sent: " & r.body
   r = post("/send", "{\"id\": \"d99\"}")
   assert r.status == 404 and r.body == "{\"draft\": null, \"error\": \"no such draft\"}", r.body
@@ -153,7 +153,7 @@ block copy_makes_the_same_checks_as_send:
               ", \"option\": \"Yes\"}").status == 500, "a forged decision id"
   assert post("/withdraw", "{\"id\": \"../../x\"}").status == 500, "a forged draft id"
   r = post("/withdraw", "{\"id\": " & quote(id) & "}")
-  assert r.status == 409 and "\"delivered\": \"2026-11-09T09:00" in r.body,
+  assert r.status == 409 and "\"delivered\":\"2026-11-09T09:00" in r.body,
     "Discard after pasting is refused; the page repaints it as sent: " & r.body
   writeText(spath, before)   # not pasted after all
   assert post("/withdraw", "{\"id\": " & quote(id) & "}").status == 200, "Discard"

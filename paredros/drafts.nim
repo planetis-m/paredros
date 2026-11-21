@@ -45,9 +45,11 @@ proc number(stem: string): int =
   if stem.len > 1 and stem[0] == 'd' and allCharsInSet(stem.substr(1), Digits):
     result = try: parseInt(stem.substr(1)) except: -1
 
-proc orNull(s: string): string =
-  ## s as a JSON string; null when it is "".
-  if s.len > 0: quote(s) else: "null"
+type DraftRecord = object
+  ## A draft as its JSON file holds it.
+  item: int
+  did, question, option: string
+  code, brief: Opt[string]
 
 # -------------------------------------------------------------------- drafts
 
@@ -58,32 +60,18 @@ proc readDraft(sid, p: string): Result[Draft, string] =
   let id = extractFilename(p).changeFileExt("")
   let text = try: readFile(p) except: ""
   var tree = parseJson(text, p)
+  var rec = DraftRecord()
+  if not tree.hasError:
+    try:
+      rec = fromJson(tree, DraftRecord, JsonOptions(allowExtraKeys: true))
+    except:
+      discard   # tree.errorMsg says why
   if tree.hasError: return err[Draft, string]("cannot read " & p & ": " & tree.errorMsg)
-  var dr = Draft(id: id, item: 0, did: "", question: "", option: "", code: "", brief: "",
-                 decision: "", tag: "", text: "")
-  var have: seq[string] = @[]   # the keys the text is built from
-  if tree.root.kind == JObject:
-    for k, v in pairs(tree.root):
-      case k
-      of "item":
-        if v.kind == JInt:
-          dr.item = int(v.getInt)
-          have.add k
-      of "did", "question", "option":
-        if v.kind == JString: have.add k
-        if k == "did": dr.did = v.getStr
-        elif k == "question": dr.question = v.getStr
-        else: dr.option = v.getStr
-      # null, written for none, reads as ""
-      of "code": dr.code = v.getStr
-      of "brief": dr.brief = v.getStr
-      else: discard
-  for k in ["item", "did", "question", "option"]:
-    if k notin have: return err[Draft, string](p & " has no " & k)
-  dr.decision = $dr.item & ":" & dr.did
-  dr.tag = toHex(sha256(sid & "/" & id)).substr(0, 5).toLowerAscii
-  dr.text = dr.question & "\nMy decision: " & dr.option & ". (" & dr.tag & ", approved by me)"
-  result = ok[Draft, string](dr)
+  let tag = toHex(sha256(sid & "/" & id)).substr(0, 5).toLowerAscii
+  result = ok[Draft, string](Draft(
+    id: id, item: rec.item, did: rec.did, question: rec.question, option: rec.option,
+    code: rec.code.get(""), brief: rec.brief.get(""), decision: $rec.item & ":" & rec.did,
+    tag: tag, text: rec.question & "\nMy decision: " & rec.option & ". (" & tag & ", approved by me)"))
 
 proc allDrafts*(sid: string): Result[seq[Draft], string] =
   ## The session's drafts, by number; withdrawn ones and files of other
@@ -145,13 +133,12 @@ proc decide*(sid, spath: string; item: int; did, question, option: string; code 
     return err[Draft, string]("cannot read " & d)
   let name = if mine.len > 0: mine else: "d" & $(used + 1)
   let p = d & "/" & name & ".json"
-  # Joined from its members, not std/json's toJson, which has no null: code
-  # and brief are null when the page showed none.
   # GAP: written on one line, not indented, because std/json has no pretty
   # printer (README, Limitations).
-  let record = "{\"item\":" & $item & ",\"did\":" & quote(did) & ",\"question\":" &
-    quote(collapse(question)) & ",\"option\":" & quote(collapse(option)) & ",\"code\":" &
-    orNull(code) & ",\"brief\":" & orNull(brief) & "}"
+  let record = quote(DraftRecord(
+    item: item, did: did, question: collapse(question), option: collapse(option),
+    code: if code.len > 0: some(code) else: none[string](),
+    brief: if brief.len > 0: some(brief) else: none[string]()))
   try:
     writeAtomic(p, record)
   except:

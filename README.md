@@ -259,9 +259,6 @@ Server:
 - A port in use stops paredros with a failed assertion, not a message,
   because std/ioring's `listenTcp` asserts that bind succeeds
   (bug-reports/109).
-- A browser tab that goes away before its answer is written stops the whole
-  server (SIGPIPE), because std/httpserver neither ignores nor suppresses
-  the signal (bug-reports/114).
 - A refused request or a missing file (421, 403, 404, 501) gets an empty
   answer, not an HTML error page; files have no Last-Modified and are never a
   304; a target that climbs above the pages (`/../x`) is a 400, not a 404.
@@ -270,10 +267,6 @@ Server:
 
 Model runs and child processes:
 
-- `--jobs` is accepted, but the briefs are written one after another: runs
-  started at once from std/parfor's `||` wait on each other for ever, because
-  std/osproc's children inherit each other's pipes on Linux
-  (bug-reports/105).
 - A command that times out is killed, but not the processes it started,
   because std/osproc kills one process.
 - A child that keeps stdout or stderr open is not stopped at its timeout,

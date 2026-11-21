@@ -363,9 +363,8 @@ be denied or left out of the available tools, not merely left unallowed.
   `/config.js`.
 - Errors return JSON with a short message; a bad request never stops the
   server. A refusal or a missing file has no body (std/httpserver has no
-  error pages). A client that goes away before its answer is written does
-  stop it (SIGPIPE, bug-reports/114), and a port in use stops `paredros serve`
-  with an assertion (bug-reports/109).
+  error pages). A port in use stops `paredros serve` with an assertion
+  (bug-reports/109).
 
 ## 7. Invariants
 

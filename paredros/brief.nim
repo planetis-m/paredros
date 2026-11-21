@@ -16,7 +16,7 @@
 ## briefed.
 
 import std/[syncio, strutils, os, paths, dirs, tables, algorithm, json, opt, result, times,
-            sha1, unicode]
+            sha1, unicode, parfor]
 import std/crypto/sha2
 import state, session, config, render
 
@@ -316,10 +316,6 @@ type
     ## The work items and what is sorted.
     items*: seq[LedgerItem]    ## by id
     seen*: Table[string, int]  ## every key sorted, with its fingerprint
-  LedgerItems = object
-    # The ledger file's items, for std/json's fromJson; its seen is a Table,
-    # which std/json does not read.
-    items: seq[LedgerItem]
 
 proc ledgerPath*(sid: string): string =
   ## The ledger's file.
@@ -342,31 +338,13 @@ proc loadLedger*(sid: string): Result[Ledger, string] =
   var tree = parseJson(text)
   if not tree.hasError:
     try:
-      led.items = fromJson(tree, LedgerItems, JsonOptions(allowExtraKeys: true)).items
+      led = fromJson(tree, Ledger, JsonOptions(allowExtraKeys: true))
     except:
       discard   # tree.errorMsg says why
   if tree.hasError:
     return err[Ledger, string]("cannot read the work items in " & p & " (" & tree.errorMsg &
                                "); it is left as it is")
-  let seen = tree{"seen"}
-  if seen.kind != JObject:
-    return err[Ledger, string](p & " does not hold work items; it is left as it is")
-  for k, v in pairs(seen):
-    # a fingerprint that is not a number matches none: the source is sorted again
-    led.seen[k] = int(v.getInt(-1))
   result = ok[Ledger, string](led)
-
-proc ledgerJson(led: Ledger): string =
-  ## The ledger as its file holds it.
-  # seen is a Table, which std/json's toJson cannot write
-  # (bug-reports/112-json-tojson-table-field-fails-in-json-nim): that object
-  # is joined from its members
-  var seen: seq[string] = @[]
-  for k, v in pairs(led.seen): seen.add quote(k) & ":" & $v
-  # GAP: written on one line, not indented, and non-ASCII text as it is, not
-  # \u-escaped, because std/json has no pretty printer and no ASCII mode
-  # (README, Limitations).
-  result = "{\"items\":" & quote(led.items) & ",\"seen\":{" & seen.join(",") & "}}"
 
 proc fingerprint(key: string; texts: seq[string]): int =
   ## What makes a source worth sorting again: a turn that grew. Agents and
@@ -489,7 +467,10 @@ proc split*(sid: string; src: Sources; model = "opus"): Result[Ledger, string] =
       led.seen[x.key] = x.fingerprint
   led.items.sort(proc (a, b: LedgerItem): int = cmp(a.id, b.id))
   try:
-    writeJson(ledgerPath(sid), ledgerJson(led))
+    # GAP: written on one line, not indented, and non-ASCII text as it is, not
+    # \u-escaped, because std/json has no pretty printer and no ASCII mode
+    # (README, Limitations).
+    writeJson(ledgerPath(sid), quote(led))
   except ErrorCode as e:
     return err[Ledger, string]("cannot write the work items to " & ledgerPath(sid) &
                                " (" & $e & ")")
@@ -607,7 +588,7 @@ proc cachedJson(c: Cached): string =
                                         recommended: e.recommended)
   for e in lists[DecisionsMade]:
     b.decisions_made.add MadeRecord(text: e.text, why: e.why, source: e.source)
-  # GAP: on one line and non-ASCII text as it is, as ledgerJson.
+  # GAP: on one line and non-ASCII text as it is, as the ledger.
   result = quote(CachedRecord(inputs: c.inputs, generated: c.generated, model: c.model, brief: b))
 
 proc generate(r: WorkItem; d: Work; model = "opus";
@@ -634,19 +615,30 @@ proc generate(r: WorkItem; d: Work; model = "opus";
                                        " (" & $e & ")")
   result = ok[(Cached, bool), string]((brief, true))
 
+proc generateOne(r: WorkItem; d: Work; model: string; force: bool): (int, string) =
+  ## One item's brief result for generateAll.
+  let g = generate(r, d, model, force)
+  result = (r.n, if g.isErr: "failed: " & g.error("")
+                 elif g.get((Cached(), false))[1]: "written"
+                 else: "unchanged")
+
 proc generateAll*(d: Work; numbers: seq[int] = @[]; model = "opus"; force = false;
                   jobs = 4): seq[(int, string)] =
   ## Every item's brief (or only those numbered): (item, "written" |
   ## "unchanged" | "failed: <why>"), in item order. A failure is reported and
   ## the others go on. `jobs` is how many model runs may go at once.
-  # GAP: the model runs go one after another, whatever `jobs` says, because
-  # model runs started at once from std/parfor's `||` wait on each other for
-  # ever: std/osproc's children inherit each other's pipes on Linux
-  # (bug-reports/105-osproc-pipes-inherited-by-later-children).
-  result = @[]
+  var todo: seq[WorkItem] = @[]
   for r in d.items:
-    if numbers.len == 0 or r.n in numbers:
-      let g = generate(r, d, model, force)
-      result.add (r.n, if g.isErr: "failed: " & g.error("")
-                       elif g.get((Cached(), false))[1]: "written"
-                       else: "unchanged")
+    if numbers.len == 0 or r.n in numbers: todo.add r
+  result = newSeq[(int, string)](todo.len)
+  let step = max(jobs, 1)
+  if step == 1 or todo.len <= 1:
+    for i in 0 ..< todo.len:
+      result[i] = generateOne(todo[i], d, model, force)
+  else:
+    var start = 0
+    while start < todo.len:
+      let stop = min(start + step, todo.len) - 1
+      for i in `||`(start, stop, chunkSize = 1):
+        result[i] = generateOne(todo[i], d, model, force)
+      start = stop + 1

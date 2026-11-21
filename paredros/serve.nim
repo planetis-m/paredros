@@ -59,6 +59,7 @@ proc refused*(denials: JsonNode): seq[string] =
   ## What the permission profile refused during one answer (the run's
   ## permission_denials), one line each, for the chat.
   result = @[]
+  if denials.kind != JArray: return
   for d in items(denials):
     var tool = "?"
     var command, file, to = ""
@@ -269,14 +270,6 @@ proc number(n: JsonNode): Opt[int] =
            of JString: (try: some(parseInt(strutils.strip(n.getStr))) except: none[int]())
            else: none[int]()
 
-proc draftJson(st: DraftState): string =
-  ## A draft's state as the page reads it.
-  "{\"id\": " & quote(st.id) & ", \"decision\": " & quote(st.decision) & ", \"item\": " &
-    $st.item & ", \"question\": " & quote(st.question) & ", \"option\": " & quote(st.option) &
-    ", \"text\": " & quote(st.text) & ", \"delivered\": " &
-    (if st.delivered.isSome: quote(st.delivered.get("")) else: "null") & ", \"stale\": " &
-    quote(st.stale) & "}"
-
 proc act(s: Server; path, body: string): Reply =
   ## One of the five POST actions: JSON in, JSON out; a failure is a 500 that
   ## says what went wrong.
@@ -290,9 +283,7 @@ proc act(s: Server; path, body: string): Reply =
     # code tips as the last build found them; /send checks live
     let all = draftsState(s.sid, s.spath, builtTips(s.dest))
     if all.isErr: return failed(all.error(""))
-    var list: seq[string] = @[]
-    for st in all.get(@[]): list.add draftJson(st)
-    result = json(200, "{\"drafts\": [" & list.join(", ") & "]}")
+    result = json(200, "{\"drafts\": " & quote(all.get(@[])) & "}")
   of "/decide":
     let item = number(q{"item"})
     if item.isNone: return failed("the item is not a number")
@@ -310,7 +301,7 @@ proc act(s: Server; path, body: string): Reply =
       let c = check(s.sid, s.spath, q{"id"}.getStr)
       if c.isOk and c.get(Verdict()).draft.isSome and
           c.get(Verdict()).draft.get(DraftState()).delivered.isSome:
-        return json(409, "{\"draft\": " & draftJson(c.get(Verdict()).draft.get(DraftState())) &
+        return json(409, "{\"draft\": " & quote(c.get(Verdict()).draft) &
                          ", \"error\": " & quote(w.error("")) & "}")
       return failed(w.error(""))
     result = json(200, "{\"ok\": true}")
@@ -319,13 +310,12 @@ proc act(s: Server; path, body: string): Reply =
     let checked = check(s.sid, s.spath, q{"id"}.getStr)
     if checked.isErr: return failed(checked.error(""))
     let v = checked.get(Verdict())
-    let st = if v.draft.isSome: draftJson(v.draft.get(DraftState())) else: "null"
     result = if v.why.isNone:
-               json(200, "{\"draft\": " & st & ", \"text\": " &
+               json(200, "{\"draft\": " & quote(v.draft) & ", \"text\": " &
                          quote(v.draft.get(DraftState()).text) & "}")
              else:
                json(if v.draft.isSome: 409 else: 404,
-                    "{\"draft\": " & st & ", \"error\": " & quote(v.why.get("")) & "}")
+                    "{\"draft\": " & quote(v.draft) & ", \"error\": " & quote(v.why.get("")) & "}")
   else:
     # /ask; no item (the index page) is 0
     let it = q{"item"}
@@ -358,9 +348,6 @@ proc reply(c: var HttpConnection; r: Reply; tags: HttpTags) {.passive, raises.} 
 
 proc handle(c: sink HttpConnection; s: Server) {.passive.} =
   ## Every request on one connection, in order.
-  # GAP: a client that goes away before its answer is written stops the whole
-  # server (SIGPIPE), because std/httpserver does not ignore or suppress the
-  # signal (bug-reports/114-httpserver-sigpipe-kills-process-on-gone-peer).
   while c.next():
     try:
       let refuse = refusal(s, c)

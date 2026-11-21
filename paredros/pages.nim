@@ -352,17 +352,16 @@ proc builtTips*(dest: string): Opt[Table[int, string]] =
   ## stale marks; none when there is no build or its tips.json cannot be read.
   let text = try: readFile(dest & "/tips.json") except: ""
   var tree = parseJson(text)
-  if tree.hasError or tree.root.kind != JObject: return none[Table[int, string]]()
+  if tree.hasError: return none[Table[int, string]]()
   var tips = initTable[int, string]()
-  var good = true   # every key is a number
-  for k, v in pairs(tree.root):
-    # GAP: a key is a number in ASCII digits only, not other Unicode digits,
-    # because std/unicode has no digit test (README, Limitations).
-    try:
-      tips[parseInt(k)] = v.getStr
-    except:
-      good = false
-  result = if good: some(tips) else: none[Table[int, string]]()
+  try:
+    for k, v in pairs(fromJson(tree, Table[string, string])):
+      # GAP: a key is a number in ASCII digits only, not other Unicode digits,
+      # because std/unicode has no digit test (README, Limitations).
+      tips[parseInt(k)] = v
+    result = some(tips)
+  except:
+    result = none[Table[int, string]]()
 
 proc build*(spath, dest: string; cfg = none[Config]()): Result[string, string] =
   ## Writes the session's pages into dest: one per item and the index, the
@@ -408,13 +407,10 @@ proc build*(spath, dest: string; cfg = none[Config]()): Result[string, string] =
     for (name, text) in pageAssets:
       doing = "write " & dest & "/" & name
       writeAtomic(dest & "/" & name, text)
-    # {item: tip} is a Table, which std/json's toJson cannot write
-    # (bug-reports/112-json-tojson-table-field-fails-in-json-nim): the object
-    # is joined from its members, a space after each `:` and `,`
-    var tips: seq[string] = @[]
-    for r in d.items: tips.add quote($r.n) & ": " & quote(r.code.tip)
+    var tips = initOrderedTable[string, string]()
+    for r in d.items: tips[$r.n] = r.code.tip
     doing = "write " & dest & "/tips.json"
-    writeAtomic(dest & "/tips.json", "{" & tips.join(", ") & "}")
+    writeAtomic(dest & "/tips.json", quote(tips))
     doing = "write " & dest & "/index.html"
     writeAtomic(dest & "/index.html", $indexPage(d))
   except ErrorCode as e:

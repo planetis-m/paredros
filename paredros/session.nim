@@ -20,65 +20,43 @@ proc projectsDir*(): string =
 
 # ------------------------------------------------------------------- records
 
+const Lenient = JsonOptions(allowMissingKeys: true, allowExtraKeys: true)
+
 type
-  Block* = object
+  ToolInput = object
+    command, message: string
+  Block = object
     ## One block of a message's content: the fields paredros reads.
-    kind*: string           ## "text", "tool_use", "tool_result", ...
-    text*: string           ## a text block's text
-    id*, name*: string      ## a tool use's id and tool name
-    command*: string        ## a tool use's input.command (Bash)
-    message*: string        ## a tool use's input.message (SubagentHandback)
-    toolUseId*: string      ## a tool result's tool_use_id
+    `type`, text, id, name, tool_use_id: string
+    input: Opt[ToolInput]
+  Origin = object
+    kind: string
+  Content = object
+    ## message.content: either a plain string or a list of blocks.
+    text: string
+    blocks: seq[Block]
+  Message = object
+    content: Opt[Content]
   Rec* = object
     ## One transcript record: the fields paredros reads.
-    kind*: string           ## its "type": "user", "assistant", "system", ...
-    timestamp*, uuid*, cwd*: string
-    origin*: string         ## origin.kind: "human" for a message the human typed
-    promptSource*: string   ## "typed" for a message the human typed
-    content*: string        ## message.content when it is a plain string
-    blocks*: seq[Block]     ## message.content when it is a list
+    `type`*, timestamp*, uuid*, cwd*, promptSource*: string
+    origin: Opt[Origin]
+    message: Opt[Message]
 
-proc readBlock(n: JsonNode): Block =
-  ## One content block: the fields paredros reads.
-  result = Block()
-  for k, v in pairs(n):
-    case k
-    of "type": result.kind = v.getStr
-    of "text": result.text = v.getStr
-    of "id": result.id = v.getStr
-    of "name": result.name = v.getStr
-    of "tool_use_id": result.toolUseId = v.getStr
-    of "input":
-      if v.kind == JObject:
-        for f, x in pairs(v):
-          if f == "command": result.command = x.getStr
-          elif f == "message": result.message = x.getStr
-    else: discard
+proc fromJson(c: var JsonNode; t: typedesc[Content]; opts: var JsonOptions): Content {.raises.} =
+  ## Reads message.content: a plain string or an array of content blocks.
+  case c.kind
+  of JString: result = Content(text: fromJson(c, string, opts))
+  of JArray: result = Content(blocks: fromJson(c, seq[Block], opts))
+  else: raise ValueError
 
-proc readRec(n: JsonNode): Rec =
-  ## One record: the fields paredros reads.
-  result = Rec()
-  for k, v in pairs(n):
-    case k
-    of "type": result.kind = v.getStr
-    of "timestamp": result.timestamp = v.getStr
-    of "uuid": result.uuid = v.getStr
-    of "cwd": result.cwd = v.getStr
-    of "promptSource": result.promptSource = v.getStr
-    of "origin":
-      if v.kind == JObject:
-        for f, x in pairs(v):
-          if f == "kind": result.origin = x.getStr
-    of "message":
-      if v.kind == JObject:
-        for f, c in pairs(v):
-          if f != "content": discard
-          elif c.kind == JString: result.content = c.getStr
-          elif c.kind == JArray:
-            for b in items(c):
-              # entries that are not objects are no blocks
-              if b.kind == JObject: result.blocks.add readBlock(b)
-    else: discard
+proc kind*(r: Rec): string {.inline.} =
+  ## The record's "type": "user", "assistant", "system", ...
+  r.`type`
+
+proc contentOf(r: Rec): Content =
+  ## The record's message.content, or empty when absent.
+  r.message.get(Message()).content.get(Content())
 
 proc readJsonl*(path: string): seq[Rec] =
   ## Every record of a transcript, in order. Lines that are not a JSON object
@@ -88,7 +66,10 @@ proc readJsonl*(path: string): seq[Rec] =
   for line in text.splitLines:
     var t = parseJson(line)
     if not t.hasError and t.root.kind == JObject:
-      result.add readRec(t.root)
+      try:
+        result.add fromJson(t, Rec, Lenient)
+      except:
+        discard
 
 type ToolUse = object
   ## A tool call, with the time of the record that made it.
@@ -99,9 +80,9 @@ proc toolUses(recs: openArray[Rec]): seq[ToolUse] =
   ## Every tool call the session made, in order.
   result = @[]
   for r in recs:
-    if r.kind == "assistant":
-      for c in r.blocks:
-        if c.kind == "tool_use": result.add ToolUse(timestamp: r.timestamp, tool: c)
+    if r.`type` == "assistant":
+      for c in contentOf(r).blocks:
+        if c.`type` == "tool_use": result.add ToolUse(timestamp: r.timestamp, tool: c)
 
 type Said* = object
   ## A text the session wrote, with its record's time.
@@ -111,24 +92,25 @@ proc assistantTexts*(recs: openArray[Rec]): seq[Said] =
   ## (timestamp, text) for every assistant text block, in order.
   result = @[]
   for r in recs:
-    if r.kind == "assistant":
-      for c in r.blocks:
-        if c.kind == "text" and not c.text.isEmptyOrWhitespace:
+    if r.`type` == "assistant":
+      for c in contentOf(r).blocks:
+        if c.`type` == "text" and not c.text.isEmptyOrWhitespace:
           result.add Said(timestamp: r.timestamp, text: c.text)
 
 proc isHuman*(r: Rec): bool =
   ## A message the human typed (not a tool result or an injected prompt).
-  r.kind == "user" and (r.origin == "human" or r.promptSource == "typed")
+  r.`type` == "user" and (r.origin.get(Origin()).kind == "human" or r.promptSource == "typed")
 
 let pasted = re"</?pasted_content[^>]*>"
 
 proc textOf*(r: Rec): string =
   ## The text of a message, without the tags that mark pasted content.
-  var t = r.content
-  if r.blocks.len > 0:
+  let mc = contentOf(r)
+  var t = mc.text
+  if mc.blocks.len > 0:
     var parts: seq[string] = @[]
-    for x in r.blocks:
-      if x.kind == "text": parts.add x.text
+    for x in mc.blocks:
+      if x.`type` == "text": parts.add x.text
     t = parts.join(" ")
   result = t.replace(pasted, "").strip
 
@@ -136,16 +118,16 @@ proc toolResults(recs: openArray[Rec]): Table[string, string] =
   ## {tool_use id: timestamp} for every tool result: when each call ended.
   result = initTable[string, string]()
   for r in recs:
-    if r.kind == "user":
-      for b in r.blocks:
-        if b.kind == "tool_result": result[b.toolUseId] = r.timestamp
+    if r.`type` == "user":
+      for b in contentOf(r).blocks:
+        if b.`type` == "tool_result": result[b.tool_use_id] = r.timestamp
 
 proc finalReport*(recs: openArray[Rec]): Opt[string] =
   ## What an agent handed back: its last SubagentHandback message, else the
   ## last text it wrote; none when it wrote nothing.
   var report = ""
   for u in toolUses(recs):
-    if u.tool.name == "SubagentHandback": report = u.tool.message
+    if u.tool.name == "SubagentHandback": report = u.tool.input.get(ToolInput()).message
   let texts = assistantTexts(recs)
   result = if report.len > 0: some(report)
            elif texts.len > 0: some(texts[^1].text)
@@ -232,12 +214,13 @@ proc agents*(sessionPath: string): seq[Agent] =
     let description = if meta.hasError: "" else: meta{"description"}.getStr
     let recs = readJsonl(p)
     var prompt = ""
-    if recs.len > 0 and recs[0].kind == "user":
+    if recs.len > 0 and recs[0].`type` == "user":
       # every block's text, whatever its type
-      prompt = recs[0].content
-      if recs[0].blocks.len > 0:
+      let mc = contentOf(recs[0])
+      prompt = mc.text
+      if mc.blocks.len > 0:
         var parts: seq[string] = @[]
-        for c in recs[0].blocks: parts.add c.text
+        for c in mc.blocks: parts.add c.text
         prompt = parts.join(" ")
     result.add Agent(id: extractFilename(p).changeFileExt("").substr(len("agent-")),
                      recs: recs, prompt: prompt, description: description,
@@ -332,7 +315,7 @@ proc gitWrites*(recs: openArray[Rec]): seq[GitWrite] =
   let ends = toolResults(recs)
   for r in recs:
     for u in toolUses([r]):
-      let cmd = if u.tool.name == "Bash": u.tool.command else: ""
+      let cmd = if u.tool.name == "Bash": u.tool.input.get(ToolInput()).command else: ""
       if cmd.contains(gitWrite):
         var dirs: seq[string] = @[]
         for d in groups(cmd, cdTo):
