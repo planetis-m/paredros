@@ -79,4 +79,4 @@ proc load*(cwd: string; path = ""): Result[Config, string] =
 
 proc expand*(text, scratch: string): string =
   ## A compare text with {scratch} and {home} filled in.
-  text.replace("{scratch}", scratch).replace("{home}", home())
+  text.multiReplace([("{scratch}", scratch), ("{home}", home())])

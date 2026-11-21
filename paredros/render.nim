@@ -181,7 +181,7 @@ proc alnumBefore(text: string; i: int): bool =
 proc inline*(text: string): Html =
   ## One line of inline Markdown as HTML. Code spans, escapes and links are set
   ## aside first, so emphasis never reaches into them; the rest is escaped.
-  let text = text.replace(SlotOpen, "").replace(SlotClose, "")
+  let text = text.multiReplace([(SlotOpen, ""), (SlotClose, "")])
   var slots: seq[Html] = @[]
   var output = ""
   var caps: seq[Capture] = @[]
@@ -456,7 +456,7 @@ proc blocks(lines: seq[string]; tight = false): seq[Html] =
 
 proc markdown*(src: string): Html =
   ## Markdown in the subset above as HTML blocks, one per line.
-  let lines = src.replace("\r\n", "\n").replace("\r", "\n").replace("\t", "    ").split('\n')
+  let lines = src.multiReplace([("\r\n", "\n"), ("\r", "\n"), ("\t", "    ")]).split('\n')
   result = join(blocks(lines), "\n")
 
 # --------------------------------------------------------------------- diffs
